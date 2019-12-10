@@ -1,13 +1,20 @@
+!>@brief The module 'stochastic_physics' is for initialization and running of
+!! the stochastic physics random pattern generators
 module stochastic_physics
 
 implicit none
 
 private
 
-public :: init_stochastic_physics, run_stochastic_physics
+public :: init_stochastic_physics
+public :: run_stochastic_physics
 
 contains
 
+!>@brief The subroutine 'init_stochastic_physics' initializes the stochastic
+!!pattern genertors
+!>@details It reads the stochastic physics namelist (nam_stoch and nam_sfcperts)
+!allocates and polulates the necessary arrays
 subroutine init_stochastic_physics(Model, Init_parm, ntasks, nthreads)
 use fv_mp_mod, only : is_master
 use stochy_internal_state_mod
@@ -17,7 +24,7 @@ use stochy_resol_def , only : latg,lonf,skeblevs
 use stochy_gg_def,only : colrad_a
 use stochy_namelist_def
 use physcons, only: con_pi
-use spectral_layout_mod,only:me,ompthreads
+use spectral_layout_mod,only:me,ompthreads,nodes
 use mpp_mod
 #ifdef STOCHY_UNIT_TEST
  use standalone_stochy_module,   only: GFS_control_type, GFS_init_type
@@ -35,7 +42,7 @@ integer :: nblks
 integer :: iret
 real*8 :: PRSI(Model%levs),PRSL(Model%levs),dx
 real, allocatable :: skeb_vloc(:)
-integer :: k,kflip,latghf,nodes,blk,k2
+integer :: k,kflip,latghf,blk,k2
 character*2::proc
 
 ! Set/update shared variables in spectral_layout_mod
@@ -58,33 +65,34 @@ call init_stochdata(Model%levs,Model%dtp,Model%input_nml_file,Model%fn_nml,Init_
 !do_sppt = .true.
 !endif
 ! check namelist entries for consistency
-!if (Model%do_sppt.neqv.do_sppt) then
-!   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
-!                   & ' namelist settings do_sppt and sppt'
-!   return
-!else if (Model%do_shum.neqv.do_shum) then
-!   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
-!                   & ' namelist settings do_shum and shum'
-!   return
-!else if (Model%do_skeb.neqv.do_skeb) then
-!   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
-!                   & ' namelist settings do_skeb and skeb'
-!   return
-!!else if (Model%do_sfcperts.neqv.do_sfcperts) then ! mg, sfc-perts
-!   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
-!                   & ' namelist settings do_sfcperts and pertz0 / pertshc / pertzt / pertlai / pertvegf / pertalb'
-!   return
-!end if
+if (Model%do_sppt.neqv.do_sppt) then
+   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
+                   & ' namelist settings do_sppt and sppt'
+   return
+else if (Model%do_shum.neqv.do_shum) then
+   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
+                   & ' namelist settings do_shum and shum'
+   return
+else if (Model%do_skeb.neqv.do_skeb) then
+   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
+                   & ' namelist settings do_skeb and skeb'
+   return
+else if (Model%do_sfcperts.neqv.do_sfcperts) then ! mg, sfc-perts
+   write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
+                   & ' namelist settings do_sfcperts and pertz0 / pertshc / pertzt / pertlai / pertvegf / pertalb'
+   return
+end if
 ! update remaining model configuration parameters from namelist
 Model%use_zmtnblck=use_zmtnblck
 Model%skeb_npass=skeb_npass
+Model%nsfcpert=nsfcpert         ! mg, sfc-perts
 Model%pertz0=pertz0         ! mg, sfc-perts
 Model%pertzt=pertzt         ! mg, sfc-perts
 Model%pertshc=pertshc         ! mg, sfc-perts
 Model%pertlai=pertlai         ! mg, sfc-perts
 Model%pertalb=pertalb         ! mg, sfc-perts
 Model%pertvegf=pertvegf         ! mg, sfc-perts
-!if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (.NOT. do_sfcperts) ) return
+if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (.NOT. do_sfcperts) ) return
 allocate(sl(Model%levs))
 do k=1,Model%levs
    sl(k)= 0.5*(Init_parm%ak(k)/101300.+Init_parm%bk(k)+Init_parm%ak(k+1)/101300.0+Init_parm%bk(k+1)) ! si are now sigmas
@@ -190,7 +198,8 @@ RNLAT=gg_lats(1)*2-gg_lats(2)
 !print *,'done with init_stochastic_physics'
 
 end subroutine init_stochastic_physics
-
+!>@brief The subroutine 'run_stochastic_physics' updates the random patterns if
+!!necessary 
 subroutine run_stochastic_physics(Model, Grid, Coupling, nthreads)
 use fv_mp_mod, only : is_master
 use stochy_internal_state_mod
@@ -220,8 +229,7 @@ integer :: nblks, blk, len, maxlen
 character*120 :: sfile
 character*6   :: STRFH
 
-!if ( (.NOT. Model%do_sppt) .AND. (.NOT. Model%do_shum) .AND. (.NOT. Model%do_skeb) ) return
-!if ( (.NOT. Model%do_sppt) .AND. (.NOT. Model%do_shum) .AND. (.NOT. Model%do_skeb)  .AND. (.NOT. Model%do_sfcperts) ) return
+if ( (.NOT. Model%do_sppt) .AND. (.NOT. Model%do_shum) .AND. (.NOT. Model%do_skeb) ) return
 
 ! Update number of threads in shared variables in spectral_layout_mod and set block-related variables
 ompthreads = nthreads
@@ -229,7 +237,7 @@ nblks = size(Model%blksz)
 maxlen = maxval(Model%blksz(:))
 
 ! check to see if it is time to write out random patterns
-if (Model%phour .EQ. fhstoch) then
+if (fhstoch.GE. 0 .AND. MOD(Model%phour,fhstoch) .EQ. 0) then
    write(STRFH,FMT='(I6.6)') nint(Model%phour)
    sfile='stoch_out.F'//trim(STRFH)
    call dump_patterns(sfile)
@@ -317,7 +325,7 @@ integer j,ierr,i
 integer :: nblks, blk, len, maxlen
 character*120 :: sfile
 character*6   :: STRFH
-!if (.NOT. Model%do_sfcperts) return
+if (.NOT. Model%do_sfcperts) return
 
 ! Set block-related variables
 nblks = size(Model%blksz)
