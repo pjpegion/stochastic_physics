@@ -26,7 +26,7 @@ use stochy_resol_def , only : latg,lonf,skeblevs
 use stochy_gg_def,only : colrad_a
 use stochy_namelist_def
 use physcons, only: con_pi
-use spectral_layout_mod,only:me,ompthreads,nodes
+use spectral_layout_mod,only:me,nodes
 use mpp_mod
 #ifdef STOCHY_UNIT_TEST
  use standalone_stochy_module,   only: GFS_control_type, GFS_init_type
@@ -46,9 +46,6 @@ real*8 :: PRSI(Model%levs),PRSL(Model%levs),dx
 real, allocatable :: skeb_vloc(:)
 integer :: k,kflip,latghf,blk,k2
 character*2::proc
-
-! Set/update shared variables in spectral_layout_mod
-ompthreads  = nthreads
 
 ! ------------------------------------------
 
@@ -215,7 +212,6 @@ use stochy_data_mod, only : nshum,rpattern_shum,rpattern_sppt,nsppt,rpattern_ske
 use get_stochy_pattern_mod,only : get_random_pattern_fv3,get_random_pattern_fv3_vect,dump_patterns
 use stochy_resol_def , only : latg,lonf
 use stochy_namelist_def
-use spectral_layout_mod,only:me,ompthreads
 use mpp_mod
 #ifdef STOCHY_UNIT_TEST
 use standalone_stochy_module,   only: GFS_control_type, GFS_grid_type, GFS_Coupling_type
@@ -239,7 +235,6 @@ character*6   :: STRFH
 if ( (.NOT. Model%do_sppt) .AND. (.NOT. Model%do_shum) .AND. (.NOT. Model%do_skeb) ) return
 
 ! Update number of threads in shared variables in spectral_layout_mod and set block-related variables
-ompthreads = nthreads
 nblks = size(Model%blksz)
 maxlen = maxval(Model%blksz(:))
 

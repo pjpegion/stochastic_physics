@@ -22,7 +22,7 @@
                                       ,nodes,ls_max_node,lats_dim_a,ls_dim,lat1s_a
       use stochy_layout_lag, only : lat1s_h
       use stochy_internal_state_mod
-      use spectral_layout_mod,only:lon_dims_a, num_parthds_stochy => ompthreads
+      use spectral_layout_mod,only:lon_dims_a
       use stochy_resol_def
       use stochy_namelist_def
       use fv_mp_mod, only : is_master
@@ -54,7 +54,6 @@
       type(stochy_internal_state), intent(inout) :: gis_stochy
       integer,                                    intent(out)   :: rc
       integer           :: ierr, npe_single_member, iret,latghf
-      integer           :: num_parthds_stochy
       integer           :: i, j, k, l, n, locl
       logical           :: file_exists=.false.
       integer, parameter :: iunit=101
@@ -96,10 +95,9 @@
       allocate(wgtcs_a(latg2))
       allocate(rcs2_a(latg2))
 
-!      if (is_master()) then
-!        print*,'number of threads is',num_parthds_stochy
-!        print*,'number of mpi procs is',nodes
-!      endif
+      if (is_master()) then
+        print*,'number of mpi procs is',nodes
+      endif
 !
       ls_dim = (jcap1-1)/nodes+1
 !      print*,'allocating lonsperlat',latg

@@ -1,5 +1,5 @@
 #!/bin/sh -x
-compile_all=0
+compile_all=1
 FC=mpif90
 INCS="-I. -I../FV3/gfsphysics/ -I../FMS/include -I../FV3/atmos_cubed_sphere -I../FMS/fv3gfs"
 FLAGS64=" -traceback -real-size 64 -DSTOCHY_UNIT_TEST -c "$INCS
@@ -21,7 +21,7 @@ if [ $compile_all -eq 1 ];then
    $FC ${FLAGS64} dezouv_stochy.f
    $FC ${FLAGS64} dozeuv_stochy.f
    $FC ${FLAGS64} epslon_stochy.f
-   $FC ${FLAGS64} four_to_grid_stochy.f
+   $FC ${FLAGS64} four_to_grid_stochy.F
    $FC ${FLAGS64} sumfln_stochy.f
    $FC ${FLAGS64} get_lats_node_a_stochy.f
    $FC ${FLAGS64} get_ls_node_stochy.f
