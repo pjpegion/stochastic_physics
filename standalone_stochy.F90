@@ -288,7 +288,7 @@ do i=1,nblks
    if (Model%do_skeb)allocate(Coupling(i)%skebu_wts(blksz,nlevs))
    if (Model%do_skeb)allocate(Coupling(i)%skebv_wts(blksz,nlevs))
 enddo
-do i=1,200
+do i=1,5
    Model%kdt=i
    ts=i/4.0
    call run_stochastic_physics(Model, Grid, Coupling, nthreads)

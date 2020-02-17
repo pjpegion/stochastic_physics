@@ -159,7 +159,6 @@ ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
         do node = 1, nodes - 1
           ilat_list(node+1) = ilat_list(node) + lats_nodes(node)
         end do
-!$omp parallel private(node,jj,ilat,lat,ipt_ls,nvar,kn,n2)
         do node=1,nodes
           do jj=1,lats_nodes(node)
             ilat  = ilat_list(node) + jj
@@ -191,7 +190,6 @@ ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
             endif
           enddo
         enddo
-!$omp end parallel
 !
       enddo   ! end of do j loop #######################################
 !
@@ -242,7 +240,6 @@ ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !
       kptr = 0
 !
-!$omp parallel private(node,l,lval,j,lat,nvar,kn,n2)
       do node=1,nodes
         do l=1,max_ls_nodes(node)
           lval = ls_nodes(l,node)+1
@@ -261,7 +258,6 @@ ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
           enddo
         enddo
       enddo
-!$omp end parallel
 !
       return
       end subroutine sumfln_stochy
