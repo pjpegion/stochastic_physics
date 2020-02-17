@@ -100,51 +100,53 @@
 !
       do j = 1, ls_max_node   ! start of do j loop #####################
 !
-         l = ls_node(j,1)
-         jbasev = ls_node(j,2)
-         jbasod = ls_node(j,3)
+        l = ls_node(j,1)
+        jbasev = ls_node(j,2)
+        jbasod = ls_node(j,3)
 
-         indev  = indlsev(l,l)
-         indod  = indlsod(l+1,l)
+        indev  = indlsev(l,l)
+        indod  = indlsod(l+1,l)
 !
-         lat1 = lat1s(l)
+        lat1 = lat1s(l)
+        n2 = 2*nvars
 
-!        compute the even and odd components of the fourier coefficients
-!        compute the sum of the even real      terms for each level
-!        compute the sum of the even imaginary terms for each level
+!       compute the even and odd components of the fourier coefficients
 
-         call esmf_dgemm(
+!       compute the sum of the even real      terms for each level
+!       compute the sum of the even imaginary terms for each level
+!
+        call esmf_dgemm(
      &                   't',
      &                   'n',
-     &                    2*nvars-1,
+     &                    n2,
      &                   latl2-lat1+1,
      &                   (jcap+3-l)/2,
      &                   cons1,
-     &                   flnev(indev,2*nvars-1),
+     &                   flnev(indev,1),
      &                   len_trie_ls,
      &                   plnev(indev,lat1),
      &                   len_trie_ls,
      &                   cons0,
-     &                   apev(2*nvars,lat1),
+     &                   apev(1,lat1),
      &                   2*nvars
      &                   )
 !
 !           compute the sum of the odd real      terms for each level
 !           compute the sum of the odd imaginary terms for each level
 !
-              call esmf_dgemm(
+           call esmf_dgemm(
      &                   't',
      &                   'n',
-     &                   2*nvars-1,
+     &                   n2,
      &                   latl2-lat1+1,
      &                  (jcap+2-l)/2,
      &                   cons1,
-     &                   flnod(indod,2*nvars-1),
+     &                   flnod(indod,1),
      &                   len_trio_ls,
      &                   plnod(indod,lat1),
      &                   len_trio_ls,
      &                   cons0,
-     &                   apod(2*nvars-1,lat1),
+     &                   apod(1,lat1),
      &                   2*nvars
      &                   )
 !
@@ -227,15 +229,10 @@ ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
          lonl = lons_lat(lat)
          lmax = min(jcap,lonl/2)
          n2   = lmax + lmax + 3
-!     write(0,*)' j=',j,' lat=',lat,' lmax=',lmax,' n2=',n2
-!    &,' nvars=',nvars,' lonl=',lonl
          if ( n2 <= lonl+2 ) then
            do nvar=1,nvars
              nv = nvars_0 + nvar
              do lval = n2, lonl+2
-!        write(0,*)' lval=',lval,' nvar=',nvar,nvars_0
-!    &,' n2=',n2,' lonl=',lonl,' nv=',nv,' j=',j
-!    &,'size=',size(four_gr,1),size(four_gr,2),size(four_gr,3)
                four_gr(lval,nv,j) = cons0
              enddo
            enddo
@@ -244,8 +241,7 @@ ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !$omp end parallel
 !
       kptr = 0
-!     write(0,*)' kptr=',kptr(1)
-!!
+!
 !$omp parallel private(node,l,lval,j,lat,nvar,kn,n2)
       do node=1,nodes
         do l=1,max_ls_nodes(node)

@@ -19,10 +19,9 @@
 !
       use machine
       use spectral_layout_mod,      only : ipt_lats_node_a, lats_node_a_max,lon_dim_a,len_trie_ls,len_trio_ls &
-                                      ,nodes,ls_max_node,lats_dim_a,ls_dim,lat1s_a
+                                      ,nodes,ls_max_node,lats_dim_a,ls_dim,lat1s_a,lon_dims_a
       use stochy_layout_lag, only : lat1s_h
       use stochy_internal_state_mod
-      use spectral_layout_mod,only:lon_dims_a
       use stochy_resol_def
       use stochy_namelist_def
       use fv_mp_mod, only : is_master
@@ -95,9 +94,9 @@
       allocate(wgtcs_a(latg2))
       allocate(rcs2_a(latg2))
 
-      if (is_master()) then
-        print*,'number of mpi procs is',nodes
-      endif
+!      if (is_master()) then
+!        print*,'number of mpi procs is',nodes
+!      endif
 !
       ls_dim = (jcap1-1)/nodes+1
 !      print*,'allocating lonsperlat',latg

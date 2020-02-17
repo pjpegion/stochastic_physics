@@ -1,9 +1,13 @@
 #!/bin/sh -x
-compile_all=1
+SRC_DIR=/scratch2/BMC/gsienkf/Philip.Pegion/ufs-weather-model/
+compile_all=0
 FC=mpif90
-INCS="-I. -I../FV3/gfsphysics/ -I../FMS/include -I../FV3/atmos_cubed_sphere -I../FMS/fv3gfs"
-FLAGS64=" -traceback -real-size 64 -DSTOCHY_UNIT_TEST -c "$INCS
-FLAGS=" -traceback -DSTOCHY_UNIT_TEST -c "$INCS
+INCS="-I. -I${SRC_DIR}FV3/gfsphysics/ -I${SRC_DIR}/FMS/include -I${SRC_DIR}/FV3/atmos_cubed_sphere -I${SRC_DIR}/FMS/fv3gfs"
+OPT_FLAGS="-traceback"
+#OPT_FLAGS='-O2 -debug minimal -fp-model source -qoverride-limits -qopt-prefetch=3'
+FLAGS64=$OPT_FLAGS" -qopenmp -real-size 64 -DSTOCHY_UNIT_TEST -c "$INCS
+FLAGS=$OPT_FLAGS" -qopenmp -DSTOCHY_UNIT_TEST -c "$INCS
+echo $FLAGS
 if [ $compile_all -eq 1 ];then
    rm -f *.i90 *.i *.o *.mod lib*a
    $FC ${FLAGS}   fv_control_stub.F90
@@ -21,7 +25,7 @@ if [ $compile_all -eq 1 ];then
    $FC ${FLAGS64} dezouv_stochy.f
    $FC ${FLAGS64} dozeuv_stochy.f
    $FC ${FLAGS64} epslon_stochy.f
-   $FC ${FLAGS64} four_to_grid_stochy.F
+   $FC ${FLAGS64} four_to_grid_stochy.f
    $FC ${FLAGS64} sumfln_stochy.f
    $FC ${FLAGS64} get_lats_node_a_stochy.f
    $FC ${FLAGS64} get_ls_node_stochy.f
@@ -37,4 +41,6 @@ if [ $compile_all -eq 1 ];then
    $FC ${FLAGS64} stochastic_physics.F90
    ar rv libstochastic_physics.a *.o
 fi
-$FC -traceback -real-size 64 -qopenmp -o standalone_stochy standalone_stochy.F90 ${INCS} -I/apps/netcdf/4.7.0/intel/18.0.5.274/include -L. -lstochastic_physics -L../FV3/atmos_cubed_sphere -lfv3core -L../FMS/FMS_INSTALL -lfms -L../FV3/gfsphysics -lgfsphys -L/scratch2/NCEPDEV/nwprod/NCEPLIBS/compilers/intel/18.0.5.274/lib -lsp_v2.0.3_d -L/scratch1/NCEPDEV/nems/emc.nemspara/soft/esmf/8.0.0bs48-intel18.0.5.274-impi2018.0.4-netcdf4.6.1/lib -Wl,-rpath,/scratch1/NCEPDEV/nems/emc.nemspara/soft/esmf/8.0.0bs48-intel18.0.5.274-impi2018.0.4-netcdf4.6.1/lib -lesmf -L/apps/netcdf/4.7.0/intel/18.0.5.274/lib -lnetcdff -lnetcdf
+$FC ${FLAGS64} sumfln_stochy.f
+ar rv libstochastic_physics.a *.o
+$FC -traceback -real-size 64 -qopenmp -o standalone_stochy standalone_stochy.F90 ${INCS} -I/apps/netcdf/4.7.0/intel/18.0.5.274/include -L. -lstochastic_physics -L${SRC_DIR}/FV3/atmos_cubed_sphere -lfv3core -L${SRC_DIR}/FMS/FMS_INSTALL -lfms -L${SRC_DIR}/FV3/gfsphysics -lgfsphys -L/scratch2/NCEPDEV/nwprod/NCEPLIBS/compilers/intel/18.0.5.274/lib -lsp_v2.0.3_d -L/scratch1/NCEPDEV/nems/emc.nemspara/soft/esmf/8.0.0bs48-intel18.0.5.274-impi2018.0.4-netcdf4.6.1/lib -Wl,-rpath,/scratch1/NCEPDEV/nems/emc.nemspara/soft/esmf/8.0.0bs48-intel18.0.5.274-impi2018.0.4-netcdf4.6.1/lib -lesmf -L/apps/netcdf/4.7.0/intel/18.0.5.274/lib -lnetcdff -lnetcdf
