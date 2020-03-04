@@ -1,0 +1,123 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Users Guide &#8212; UFS stochastic physics public documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Stochastic Physics Namelist" href="namelist_options.html" />
+    <link rel="prev" title="Getting Started" href="getting_started.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="users-guide">
+<h1>Users Guide<a class="headerlink" href="#users-guide" title="Permalink to this headline">¶</a></h1>
+<p>The stochastic physics currently only works with the UFS-atmosphere model</p>
+<p>Currently, 3 stochastic schemes are used operationally at NCEP/EMC: Stochastic Kinetic Energy Backscatter (SKEB; Berner et al., 2009), Stochastically Perturbed Physics Tendencies (SPPT; Palmer et al., 2009), and Specific Humidity perturbations (SHUM), which is inspired by Tompkins and Berner, 2008. In addition there is the ability to perturb certain land model/surface parameters (Gehne et al, 2019), and a cellular automata scheme (Bengtsson et al. 20XX) which interacts directly with the convective parameterization.</p>
+<p>SKEB adds wind perturbations to model state.  Perturbations are random in space/time, but amplitude is determined by a smoothed dissipation estimate provided by the dynamical core.
+Addresses errors in the dynamics  - more active in the mid-latitudes</p>
+<p>SPPT multiplies the physics tendencies by a random number O [0,2] before updating the model state.  Addresses error in the physics parameterizations (either missing physics or unresolved subgrid processes). It is most active in boundary layer and convective regions</p>
+<p>SHUM multiply the low-level specific humidity by a small random number each time-step. It attempts to address missing physics (cold pools, gust fronts), most active in convective regions</p>
+<p>Land surface perturbations allow for land surface parameters such as Albedo, Soil Hydraulic Conductivity, LAI, and roughness lengths to vary in space. Addresses error in the land model and land-atmosphere interactions</p>
+<p>Due to the model’s numerics, any stochastic perturbation needs to be correlated in space and time in order to have the desired effect of upscale growth of the perturbations. This is achieved by creating a random pattern that has a specified decorrelation length-scale and is a first order auto-regressive process AR(1) in time with a specified decorrelation time-scale.  (The CA random pattern generator also satisfies this condition)</p>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">UFS stochastic physics</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Users Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="namelist_options.html">Stochastic Physics Namelist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developers_guide.html">Developer’s guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="getting_started.html" title="previous chapter">Getting Started</a></li>
+      <li>Next: <a href="namelist_options.html" title="next chapter">Stochastic Physics Namelist</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Philip Pegion.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/users_guide.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
