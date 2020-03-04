@@ -15,6 +15,7 @@ install:
 branches:
   only:
     - ufs_public_release
+    - ufs_public_release_v0
 
 # Environment variables
 env:
@@ -49,4 +50,4 @@ deploy:
   local_dir: docs/build/html
   github_token: $GH_REPO_TOKEN
   on:
-    branch: ufs_public_release
+    tags: true
