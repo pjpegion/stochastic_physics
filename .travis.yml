@@ -19,7 +19,7 @@ branches:
 # Environment variables
 env:
   global:
-    - GH_REPO_NAME: stochastic_physics
+    - GH_REPO_NAME: stochastic_physics/v1
     - DOXYFILE: $TRAVIS_BUILD_DIR/
     - GH_REPO_REF: github.com/pjpegion/stochastic_physics.git
 
