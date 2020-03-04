@@ -14,8 +14,6 @@ install:
 # Blacklist
 branches:
   only:
-    - ufs_public_release
-    - ufs_public_release_v0
     - ufs_public_release_v0c
 
 # Environment variables
