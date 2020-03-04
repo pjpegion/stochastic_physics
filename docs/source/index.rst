@@ -1,4 +1,4 @@
-Welcome to UFS stochastic physics's tests!
+Welcome to UFS stochastic physics's tests2!
 ==================================================
 
 .. toctree::
