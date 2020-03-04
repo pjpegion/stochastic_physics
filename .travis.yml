@@ -24,16 +24,8 @@ env:
     - DOXYFILE: $TRAVIS_BUILD_DIR/
     - GH_REPO_REF: github.com/pjpegion/stochastic_physics.git
 
-# Install dependencies
-addons:
-  apt:
-    packages:
-      - doxygen
-      - graphviz
-
 # Build your code e.g. by calling make
 script:
-    - doxygen
     - pushd docs
 #   Use Sphinx to make the html docs
     - make html
@@ -41,9 +33,6 @@ script:
     - touch build/html/.nojekyll
     - popd
 
-# Generate and deploy documentation
-before_deploy:
-    - cp -r html docs/build/html/doxygen
 deploy:
   provider: pages
   skip_cleanup: true
