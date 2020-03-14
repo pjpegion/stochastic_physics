@@ -2,12 +2,12 @@ module stochy_data_mod
 
 ! set up and initialize stochastic random patterns.
 
- use spectral_layout_mod, only: len_trie_ls,len_trio_ls,ls_dim,ls_max_node
- use stochy_resol_def, only : skeblevs,levs,jcap,lonf,latg
+ use spectral_layout_mod, only: len_trie_ls,len_trio_ls,ls_dim,ls_max_node,&
+                              skeblevs,levs,jcap,lonf,latg
  use stochy_namelist_def
  use constants_mod, only : radius
  use spectral_layout_mod, only : me, nodes
- use fv_mp_mod, only: mp_bcst, is_master
+ use mpp_mod,             only: mpp_pe,mpp_npes,mpp_root_pe,mpp_broadcast
  use stochy_patterngenerator_mod, only: random_pattern, patterngenerator_init,&
  getnoise, patterngenerator_advance,ndimspec,chgres_pattern,computevarspec_r
  use initialize_spectral_mod, only: initialize_spectral
@@ -18,10 +18,11 @@ module stochy_data_mod
 
  implicit none
  private
- public :: init_stochdata
+ public :: init_stochdata,init_stochdata_ocn
 
  type(random_pattern), public, save, allocatable, dimension(:) :: &
-       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc
+       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_ocnp
+ integer, public :: nocnp=0
  integer, public :: nsppt=0
  integer, public :: nshum=0
  integer, public :: nskeb=0
@@ -33,8 +34,9 @@ module stochy_data_mod
  real(kind=kind_dbl_prec),public, allocatable :: gg_lats(:),gg_lons(:)
  real(kind=kind_dbl_prec),public :: wlon,rnlat,rad2deg
  real(kind=kind_dbl_prec),public, allocatable :: skebu_save(:,:,:),skebv_save(:,:,:)
+ integer :: root_pe
  integer,public :: INTTYP
- type(stochy_internal_state),public :: gis_stochy
+ type(stochy_internal_state),public :: gis_stochy,gis_stochy_ocn
 
  contains
  subroutine init_stochdata(nlevs,delt,input_nml_file,fn_nml,nlunit,iret)
@@ -60,14 +62,9 @@ module stochy_data_mod
 
    iret=0
    call compns_stochy (me,size(input_nml_file,1),input_nml_file(:),fn_nml,nlunit,delt,iret)
-   if(is_master()) print*,'in init stochdata',nodes,lat_s
+   if(mpp_pe()==mpp_root_pe()) print*,'in init stochdata',nodes,lat_s
    if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (.NOT. do_sfcperts) ) return
-!   if (nodes.GE.lat_s/2) then
-!      lat_s=(int(nodes/12)+1)*24
-!      lon_s=lat_s*2
-!      ntrunc=lat_s-2
-!      if (is_master()) print*,'WARNING: spectral resolution is too low for number of mpi_tasks, resetting lon_s,lat_s,and ntrunc to',lon_s,lat_s,ntrunc
-!   endif
+   root_pe=mpp_root_pe()
    call initialize_spectral(gis_stochy, iret)
    if (iret/=0) return
    allocate(noise_e(len_trie_ls,2),noise_o(len_trio_ls,2))
@@ -79,7 +76,7 @@ module stochy_data_mod
         exit
      endif
    enddo
-   if (is_master()) print *,'nsppt = ',nsppt
+   if (mpp_pe()==mpp_root_pe()) print *,'nsppt = ',nsppt
    do n=1,size(shum)
      if (shum(n) > 0) then
         nshum=nshum+1
@@ -87,7 +84,7 @@ module stochy_data_mod
         exit
      endif
    enddo
-   if (is_master()) print *,'nshum = ',nshum
+   if (mpp_pe()==mpp_root_pe()) print *,'nshum = ',nshum
    do n=1,size(skeb)
      if (skeb(n) > 0) then
         nskeb=nskeb+1
@@ -95,7 +92,7 @@ module stochy_data_mod
         exit
      endif
    enddo
-   if (is_master()) print *,'nskeb = ',nskeb
+   if (mpp_pe()==mpp_root_pe()) print *,'nskeb = ',nskeb
    ! mg, sfc-perts
    do n=1,size(pertz0)
      if (pertz0(n) > 0 .or. pertzt(n)>0 .or. pertshc(n)>0 .or. &
@@ -105,7 +102,7 @@ module stochy_data_mod
         exit
      endif
    enddo
-   if (is_master()) then
+   if (mpp_pe()==mpp_root_pe()) then
      if (npsfc > 0) then
        print *,' npsfc   = ', npsfc
        print *,' pertz0  = ', pertz0
@@ -124,7 +121,7 @@ module stochy_data_mod
    if (npsfc > 0) allocate(rpattern_sfc(npsfc))
 
 !  if stochini is true, then read in pattern from a file
-   if (is_master()) then
+   if (mpp_pe()==mpp_root_pe()) then
       if (stochini) then
          print*,'opening stoch_ini'
          OPEN(stochlun,file='stoch_ini',form='unformatted',iostat=ierr,status='old')
@@ -138,7 +135,7 @@ module stochy_data_mod
    ! no spinup needed if initial patterns are defined correctly.
    spinup_efolds = 0
    if (nsppt > 0) then
-       if (is_master()) print *, 'Initialize random pattern for SPPT'
+       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for SPPT'
        call patterngenerator_init(sppt_lscale,spptint,sppt_tau,sppt,iseed_sppt,rpattern_sppt, &
            lonf,latg,jcap,gis_stochy%ls_node,nsppt,1,0,new_lscale)
        do n=1,nsppt
@@ -170,7 +167,7 @@ module stochy_data_mod
        enddo
    endif
    if (nshum > 0) then
-       if (is_master()) print *, 'Initialize random pattern for SHUM'
+       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for SHUM'
        call patterngenerator_init(shum_lscale,shumint,shum_tau,shum,iseed_shum,rpattern_shum, &
            lonf,latg,jcap,gis_stochy%ls_node,nshum,1,0,new_lscale)
        do n=1,nshum
@@ -206,7 +203,7 @@ module stochy_data_mod
   ! determine number of skeb levels to deal with temperoal/vertical correlations
    skeblevs=nint(skeb_tau(1)/skebint*skeb_vdof)
 ! backscatter noise.
-       if (is_master()) print *, 'Initialize random pattern for SKEB',skeblevs
+       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for SKEB',skeblevs
        call patterngenerator_init(skeb_lscale,skebint,skeb_tau,skeb,iseed_skeb,rpattern_skeb, &
            lonf,latg,jcap,gis_stochy%ls_node,nskeb,skeblevs,skeb_varspect_opt,new_lscale)
        do n=1,nskeb
@@ -214,7 +211,7 @@ module stochy_data_mod
              nspinup = spinup_efolds*skeb_tau(n)/skebint
              if (stochini) then
                 call read_pattern(rpattern_skeb(n),k,stochlun)
-                if (is_master()) print *, 'skeb read',k,rpattern_skeb(n)%spec_o(5,1,k)
+                if (mpp_pe()==mpp_root_pe()) print *, 'skeb read',k,rpattern_skeb(n)%spec_o(5,1,k)
              else
                 call getnoise(rpattern_skeb(n),noise_e,noise_o)
                 do nn=1,len_trie_ls
@@ -260,7 +257,7 @@ if (skebnorm==0) then
         indod = indod + 1
      enddo
   enddo
-  if (is_master()) print*,'using streamfunction ',maxval(gis_stochy%kenorm_e(:)),minval(gis_stochy%kenorm_e(:))
+  if (mpp_pe()==mpp_root_pe()) print*,'using streamfunction ',maxval(gis_stochy%kenorm_e(:)),minval(gis_stochy%kenorm_e(:))
 endif
 if (skebnorm==1) then
  do locl=1,ls_max_node
@@ -280,7 +277,7 @@ if (skebnorm==1) then
         indod = indod + 1
      enddo
   enddo
-  if (is_master()) print*,'using kenorm ',maxval(gis_stochy%kenorm_e(:)),minval(gis_stochy%kenorm_e(:))
+  if (mpp_pe()==mpp_root_pe()) print*,'using kenorm ',maxval(gis_stochy%kenorm_e(:)),minval(gis_stochy%kenorm_e(:))
 endif
   ! set the even and odd (n-l) terms of the top row to zero
 do locl=1,ls_max_node
@@ -302,7 +299,7 @@ if (npsfc > 0) then
        call patterngenerator_init(sfc_lscale,delt,sfc_tau,pertsfc,iseed_sfc,rpattern_sfc, &
               lonf,latg,jcap,gis_stochy%ls_node,npsfc,nsfcpert,0,new_lscale)
        do n=1,npsfc
-          if (is_master()) print *, 'Initialize random pattern for SFC-PERTS',n
+          if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for SFC-PERTS',n
           do k=1,nsfcpert
            nspinup = spinup_efolds*sfc_tau(n)/delt
            call getnoise(rpattern_sfc(n),noise_e,noise_o)
@@ -325,20 +322,84 @@ if (npsfc > 0) then
            do nn=1,nspinup
               call patterngenerator_advance(rpattern_sfc(n),k,.false.)
            enddo
-           if (is_master()) print *, 'Random pattern for SFC-PERTS: k, min, max ',k, minval(rpattern_sfc(1)%spec_o(:,:,k)), maxval(rpattern_sfc(1)%spec_o(:,:,k))
+           if (mpp_pe()==mpp_root_pe()) print *, 'Random pattern for SFC-PERTS: k, min, max ',k, minval(rpattern_sfc(1)%spec_o(:,:,k)), maxval(rpattern_sfc(1)%spec_o(:,:,k))
          enddo ! k, nsfcpert
        enddo ! n, npsfc
    endif ! npsfc > 0
-   if (is_master() .and. stochini) CLOSE(stochlun)
+   if (mpp_pe()==mpp_root_pe() .and. stochini) CLOSE(stochlun)
    deallocate(noise_e,noise_o)
  end subroutine init_stochdata
 
+ subroutine init_stochdata_ocn(nlevs,delt,iret)
+
+ use compns_stochy_mod, only : compns_stochy_ocn
+ use mpp_domains_mod,     only: mpp_broadcast_domain,MPP_DOMAIN_TIME,mpp_domains_init ,mpp_domains_set_stack_size
+! initialize random patterns.  A spinup period of spinup_efolds times the
+! temporal time scale is run for each pattern.
+   integer, intent(in) :: nlevs
+   real, intent(in) :: delt
+   integer, intent(out) :: iret
+   
+   integer :: nn,nm,stochlun,n
+   integer :: l,jbasev,jbasod
+   integer :: indev,indod,indlsod,indlsev
+   real(kind_dbl_prec),allocatable :: noise_e(:,:),noise_o(:,:)
+   include 'function_indlsod'
+   include 'function_indlsev'
+   stochlun=99
+   levs=nlevs
+
+   iret=0
+   call compns_stochy_ocn (delt,iret)
+   if(mpp_pe()==mpp_root_pe()) print*,'in init stochdata_ocn',mpp_npes(),lat_s
+   if ( .NOT. do_ocnp ) return
+   call initialize_spectral(gis_stochy_ocn, iret)
+   if (iret/=0) return
+   allocate(noise_e(len_trie_ls,2),noise_o(len_trio_ls,2))
+! determine number of random patterns to be used for each scheme.
+   do n=1,size(ocnp)
+     if (ocnp(n) > 0) then
+        nocnp=nocnp+1
+     else
+        exit
+     endif
+   enddo
+
+   if (nocnp > 0) allocate(rpattern_ocnp(nocnp))
+
+   if (nocnp > 0) then
+       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for OCNP'
+       call patterngenerator_init(ocnp_lscale,ocnpint,ocnp_tau,ocnp,iseed_ocnp,rpattern_ocnp, &
+           lonf,latg,jcap,gis_stochy_ocn%ls_node,nocnp,1,0,new_lscale)
+       do n=1,nocnp
+          call getnoise(rpattern_ocnp(n),noise_e,noise_o)
+          do nn=1,len_trie_ls
+             rpattern_ocnp(n)%spec_e(nn,1,1)=noise_e(nn,1)
+             rpattern_ocnp(n)%spec_e(nn,2,1)=noise_e(nn,2)
+             nm = rpattern_ocnp(n)%idx_e(nn)
+             if (nm .eq. 0) cycle
+             rpattern_ocnp(n)%spec_e(nn,1,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_e(nn,1,1)*rpattern_ocnp(n)%varspectrum(nm)
+             rpattern_ocnp(n)%spec_e(nn,2,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_e(nn,2,1)*rpattern_ocnp(n)%varspectrum(nm)
+          enddo
+          do nn=1,len_trio_ls
+             rpattern_ocnp(n)%spec_o(nn,1,1)=noise_o(nn,1)
+             rpattern_ocnp(n)%spec_o(nn,2,1)=noise_o(nn,2)
+             nm = rpattern_ocnp(n)%idx_o(nn)
+          if (nm .eq. 0) cycle
+             rpattern_ocnp(n)%spec_o(nn,1,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_o(nn,1,1)*rpattern_ocnp(n)%varspectrum(nm)
+            rpattern_ocnp(n)%spec_o(nn,2,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_o(nn,2,1)*rpattern_ocnp(n)%varspectrum(nm)
+          enddo
+          call patterngenerator_advance(rpattern_ocnp(n),1,.false.)
+       enddo
+   endif
+   deallocate(noise_e,noise_o)
+ end subroutine init_stochdata_ocn
 subroutine read_pattern(rpattern,k,lunptn)
    type(random_pattern), intent(inout) :: rpattern
    integer, intent(in) :: lunptn
    real(kind_dbl_prec),allocatable  :: pattern2d(:),pattern2din(:)
    real(kind_dbl_prec) :: stdevin,varin
-   integer nm,nn,ierr,jcap,isize,k
+   integer nm,nn,jcap,isize,k
    integer, allocatable :: isave(:)
 
    allocate(pattern2d(2*ndimspec))
@@ -346,7 +407,7 @@ subroutine read_pattern(rpattern,k,lunptn)
    call random_seed(size=isize,stat=rpattern%rstate)  ! get size of generator state seed array
    allocate(isave(isize))
    ! read only on root process, and send to all tasks
-   if (is_master()) then
+   if (mpp_pe()==mpp_root_pe()) then
       read(lunptn) jcap
       read(lunptn) isave
       allocate(pattern2din((jcap+1)*(jcap+2)))
@@ -367,8 +428,10 @@ subroutine read_pattern(rpattern,k,lunptn)
       endif
       deallocate(pattern2din)
     endif
-    call mp_bcst(isave,isize)  ! blast out seed
-    call mp_bcst(pattern2d,2*ndimspec)
+!    call mp_bcst(isave,isize)  ! blast out seed
+!    call mp_bcst(pattern2d,2*ndimspec)
+    call mpp_broadcast(isave,isize,root_pe)
+    call mpp_broadcast(pattern2d,2*ndimspec,root_pe)
     call random_seed(put=isave,stat=rpattern%rstate)
    ! subset
    do nn=1,len_trie_ls

@@ -9,7 +9,6 @@
 cc
 
 cc
-      use stochy_resol_def
       use spectral_layout_mod
       use machine
       implicit none

@@ -377,14 +377,12 @@ module fv_control_stub_mod
    logical, allocatable, intent(INOUT) :: grids_on_this_pe(:)
    integer, intent(INOUT) :: p_split
 
-   integer :: i, j, k, n, p
+   integer :: i, j, n
    real :: sdt
 
 ! tracers
-   integer :: num_family          !< output of register_tracers
 
    integer :: isc_p, iec_p, jsc_p, jec_p, isg, ieg, jsg, jeg, upoff, jind
-   integer :: ic, jc
 
    gid = mpp_pe()
    call init_nesting(Atm, grids_on_this_pe, p_split)
@@ -579,17 +577,16 @@ module fv_control_stub_mod
    logical, intent(INOUT) :: grids_on_this_pe(:)
    integer, intent(INOUT) :: p_split
    !--- local variables ---
-   character(len=80) :: tracerName, errString
+   character(len=80) :: errString
    character(len=32) :: nested_grid_filename
    integer :: ios, ierr, f_unit, unit
-   logical :: exists
 
    real :: dim0 = 180.           !< base dimension
    real :: dt0  = 1800.          !< base time step
    real :: ns0  = 5.             !< base nsplit for base dimension 
                                  !< For cubed sphere 5 is better
    !real :: umax = 350.          ! max wave speed for grid_type>3 ! Now defined above
-   real :: dimx, dl, dp, dxmin, dymin, d_fac
+   real :: dimx, dl, dp, dxmin, dymin
 
    integer :: n0split
    integer :: n, nn, i
@@ -1007,7 +1004,6 @@ module fv_control_stub_mod
     character(100) :: pe_list_name
     integer :: nest_pes(100)
     integer :: n, npes, ntiles, pecounter, i
-    integer, allocatable :: pelist(:)
     integer :: f_unit, ios, ierr
 
     !This is an OPTIONAL namelist, that needs to be read before everything else

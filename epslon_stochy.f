@@ -7,7 +7,6 @@
       subroutine epslon_stochy(epse,epso,epsedn,epsodn,
      &                  ls_node)
 cc
-      use stochy_resol_def
       use spectral_layout_mod
       use machine
       implicit none

@@ -292,7 +292,6 @@ contains
       type(domain2d), intent(INOUT) :: domain
       real, parameter:: r3  = 1./3.
       real :: fx(bd%isd:bd%ied+1,bd%jsd:bd%jed), fy(bd%isd:bd%ied,bd%jsd:bd%jed+1)
-      real :: q2(bd%isd:bd%ied,bd%jsd:bd%jed)
       integer i,j,k, n, nt, ntimes
       integer :: is,  ie,  js,  je
       integer :: isd, ied, jsd, jed
@@ -614,7 +613,6 @@ real, intent(inout) ::      vc(bd%isc:bd%iec   ,bd%jsc:bd%jec+1)
 type(fv_grid_type), intent(IN), target :: gridstruct
 ! Local:
 real, dimension(bd%isd:bd%ied,bd%jsd:bd%jed) :: wk
-real, dimension(bd%isc:bd%iec,bd%jsc:bd%jec) :: u,v 
 integer i,j
 
 integer :: is,  ie,  js,  je

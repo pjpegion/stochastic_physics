@@ -6,7 +6,7 @@ module stochy_patterngenerator_mod
  use spectral_layout_mod, only: len_trie_ls, len_trio_ls, ls_dim, ls_max_node
 ! use mersenne_twister_stochy, only: random_setseed,random_gauss,random_stat
  use mersenne_twister, only: random_setseed,random_gauss,random_stat
- use fv_mp_mod,only: is_master, mp_bcst
+ use mpp_mod,only: mpp_pe,mpp_root_pe,mpp_broadcast
  implicit none
  private
 
@@ -47,7 +47,7 @@ module stochy_patterngenerator_mod
    integer m,j,l,n,nm,nn,np,indev1,indev2,indod1,indod2
    integer(8) count, count_rate, count_max, count_trunc
    integer(8) :: iscale = 10000000000
-   integer count4, ierr
+   integer count4
 !   integer  member_id
    integer indlsod,indlsev,jbasev,jbasod
    include 'function_indlsod'
@@ -134,7 +134,7 @@ module stochy_patterngenerator_mod
       allocate(rpattern(np)%varspectrum(ndimspec))
       allocate(rpattern(np)%varspectrum1d(0:ntrunc))
       ! seed computed on root, then bcast to all tasks and set.
-      if (is_master()) then
+      if (mpp_pe()==mpp_root_pe()) then
 !         read(ens_nam(2:3),'(i2)') member_id
 !         print *,'ens_nam,member_id',trim(ens_nam),member_id
          if (iseed(np) == 0) then
@@ -155,12 +155,12 @@ module stochy_patterngenerator_mod
          endif
       endif
       ! broadcast seed to all tasks.
-      call mp_bcst(count4)
+      call mpp_broadcast(count4,mpp_root_pe())
       rpattern(np)%seed = count4
       ! set seed (to be the same) on all tasks. Save random state.
       call random_setseed(rpattern(np)%seed,rpattern(np)%rstate)
       if (varspect_opt .ne. 0 .and. varspect_opt .ne. 1) then
-         if (is_master()) then
+         if (mpp_pe()==mpp_root_pe()) then
             print *,'WARNING: illegal value for varspect_opt (should be 0 or 1), using 0 (gaussian spectrum)...'
          endif
          call setvarspect(rpattern(np),0,new_lscale)
@@ -257,7 +257,7 @@ module stochy_patterngenerator_mod
     real(kind_dbl_prec) :: noise_o(len_trio_ls,2)
     type(random_pattern), intent(inout) :: rpattern
     logical, intent(in) :: skeb_first_call
-    integer j,l,n,nn,nm,k,k2
+    integer nn,nm,k,k2
     call getnoise(rpattern,noise_e,noise_o)
     if (k.GT.1.AND.skeb_first_call) then
        k2=k-1

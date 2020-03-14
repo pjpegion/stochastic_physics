@@ -45,7 +45,7 @@ module compns_stochy_mod
       character(len=64),    intent(in)  :: fn_nml
       real,                 intent(in)  :: deltim
       real tol,l_min
-      real :: rerth,circ,tmp_lat
+      real :: rerth,circ
       integer k,ios
       integer,parameter :: four=4
 
@@ -56,7 +56,8 @@ module compns_stochy_mod
       shum_lscale,fhstoch,stochini,skeb_varspect_opt,sppt_sfclimit, &
       skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth, &
       skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,&
-      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale
+      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,&
+      ocnp,ocnp_lscale,ocnp_tau,iseed_ocnp
       namelist /nam_sfcperts/nsfcpert,pertz0,pertshc,pertzt,pertlai, & ! mg, sfcperts
       pertvegf,pertalb,iseed_sfc,sfc_tau,sfc_lscale,sppt_land
 
@@ -252,5 +253,138 @@ module compns_stochy_mod
 !
       return
       end subroutine compns_stochy
+
+      subroutine compns_stochy_ocn (deltim,iret)
+!$$$  Subprogram Documentation Block
+!
+! Subprogram:  compns     Check and compute namelist frequencies
+!   Prgmmr: Iredell       Org: NP23          Date: 1999-01-26
+!
+! Abstract: This subprogram checks global spectral model namelist
+!           frequencies in hour units for validity.  If they are valid,
+!           then the frequencies are computed in timestep units.
+!           The following rules are applied:
+!             1. the timestep must be positive;
+!
+! Program History Log:
+!   2016-10-11  Phil Pegion  make the stochastic physics stand alone
+!
+! Usage:    call compns_stochy (me,deltim,nlunit, stochy_namelist,iret)
+!   Input Arguments:
+!     deltim   - real timestep in seconds
+!   Output Arguments:
+!     iret     - integer return code (0 if successful or
+!                between 1 and 8 for which rule above was broken)
+!     stochy_namelist
+!
+! Attributes:
+!   Language: Fortran 90
+!
+!$$$
+
+
+      use stochy_namelist_def
+      use mpp_mod ,only: mpp_pe,mpp_root_pe
+
+      implicit none
+
+
+      real,                 intent(in)  :: deltim
+      integer,              intent(out) :: iret
+      real tol,l_min
+      real :: rerth,circ
+      integer k,ios,nlunit
+      integer,parameter :: four=4
+
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!
+      namelist /nam_stochy/ntrunc,lon_s,lat_s,sppt,sppt_tau,sppt_lscale,sppt_logit, &
+      iseed_shum,iseed_sppt,shum,shum_tau,pert_clds,pert_mp,pert_radtend,&
+      shum_lscale,fhstoch,stochini,skeb_varspect_opt,sppt_sfclimit, &
+      skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth, &
+      skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,&
+      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale, &
+      ocnp,ocnp_lscale,ocnp_tau,iseed_ocnp
+
+      namelist /nam_sfcperts/nsfcpert,pertz0,pertshc,pertzt,pertlai, & ! mg, sfcperts
+      pertvegf,pertalb,iseed_sfc,sfc_tau,sfc_lscale
+      
+
+      rerth  =6.3712e+6      ! radius of earth (m)
+      tol=0.01  ! tolerance for calculations
+      nlunit=322
+!     spectral resolution defintion
+      ntrunc=-999
+      lon_s=-999
+      lat_s=-999
+      ! can specify up to 5 values for the stochastic physics parameters
+      ! (each is an array of length 5)
+      ocnp             = -999.  ! stochastic physics tendency amplitude
+! logicals
+      do_ocnp = .false.
+      new_lscale = .false.
+      ocnpint          = 0
+      ocnp_tau         = -999.  ! time scales
+      ocnp_lscale      = -999.  ! length scales
+      iseed_ocnp       = 0      ! random seeds (if 0 use system clock)
+      rewind (nlunit)
+      open (unit=nlunit, file='input.nml', READONLY, status='OLD', iostat=ios)
+      read(nlunit,nam_stochy)
+
+      if (mpp_pe()==mpp_root_pe()) then
+      print *,' in compns_stochy_ocn'
+      print*,'ocnp=',ocnp
+      endif
+
+! PJP stochastic physics additions
+      IF (ocnp(1) > 0 ) THEN
+        do_ocnp=.true.
+      ENDIF
+!    compute frequencty to estimate dissipation timescale
+      IF (ocnpint == 0.) ocnpint=deltim
+      nsocnp=nint(ocnpint/deltim)                              ! ocnpint in seconds
+      IF(nsocnp<=0 .or. abs(nsocnp-ocnpint/deltim)>tol) THEN
+         WRITE(0,*) "SKEB interval is invalid",ocnpint
+        iret=9
+        return
+      ENDIF
+!calculate ntrunc if not supplied
+     if (ntrunc .LT. 1) then  
+        if (mpp_pe()==mpp_root_pe()) print*,'ntrunc not supplied, calculating'
+        circ=2*3.1415928*rerth ! start with lengthscale that is circumference of the earth
+        l_min=circ
+        do k=1,5
+           if (ocnp(k).GT.0) l_min=min(ocnp_lscale(k),l_min)
+       enddo
+       !ntrunc=1.5*circ/l_min
+       ntrunc=circ/l_min
+       if (mpp_pe()==mpp_root_pe()) print*,'ntrunc calculated from l_min',l_min,ntrunc
+     endif
+     ! ensure lat_s is a mutiple of 4 with a reminader of two
+     ntrunc=INT((ntrunc+1)/four)*four+2
+     if (mpp_pe()==mpp_root_pe()) print*,'NOTE ntrunc adjusted for even nlats',ntrunc
+
+! set up gaussian grid for ntrunc if not already defined. 
+     if (lon_s.LT.1 .OR. lat_s.LT.1) then
+        lat_s=ntrunc*1.5+1
+        lon_s=lat_s*2+4
+! Grid needs to be larger since interpolation is bi-linear
+        lat_s=lat_s*2
+        lon_s=lon_s*2
+        if (mpp_pe()==mpp_root_pe()) print*,'gaussian grid not set, defining here',lon_s,lat_s
+     endif
+! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!
+!  All checks are successful.
+!
+      if (mpp_pe()==mpp_root_pe()) then
+         print *, 'ocean stochastic physics'
+         print *, ' do_ocnp : ', do_ocnp
+      endif
+      iret = 0
+!
+      return
+      end subroutine compns_stochy_ocn
+
 
 end module compns_stochy_mod

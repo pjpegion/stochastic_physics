@@ -12,12 +12,10 @@
      &                         lats_node,ipt_lats_node,
      &                         lons_lat,londi,latl,nvars_0)
 !
-      use stochy_resol_def , only : jcap,latgd
       use spectral_layout_mod   , only : len_trie_ls,len_trio_ls,
-     &                               ls_dim,ls_max_node,me,nodes
+     &                                   ls_dim,ls_max_node,me,
+     &                                   nodes,jcap
       use machine
-      use spectral_layout_mod, only : num_parthds_stochy => ompthreads
-      !or : use fv_mp_mod ?
       use mpp_mod, only: mpp_pe,mpp_npes, mpp_alltoall,
      &                   mpp_get_current_pelist
 
@@ -45,14 +43,12 @@
 !    local scalars
 !    -------------
 !
-      integer              j, k, l, lat, lat1, n, kn, n2,indev,indod
+      integer              j, l, lat, lat1, n, kn, n2,indev,indod
 !
 !    local arrays
 !    ------------
 !
       real(kind=kind_dbl_prec), dimension(nvars*2,latl2) ::  apev, apod
-      integer               num_threads, nvar_thread_max, nvar_1, nvar_2
-     &,                     thread
 ! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !
       integer              nvarsdim,  latl, workdim, londi
@@ -74,7 +70,7 @@
       integer, dimension(nodes) :: kpts, kptr, sendcounts, recvcounts,
      &                              sdispls
 !
-      integer              ierr,ilat,ipt_ls, lmax,lval,i,jj,lonl,nv
+      integer              ilat,ipt_ls, lmax,lval,jj,lonl,nv
       integer              node,nvar,arrsz,my_pe
       integer              ilat_list(nodes)              !    for OMP buffer copy
 !
@@ -91,8 +87,6 @@
 ! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !
       arrsz=2*nvars*ls_dim*workdim*nodes
-      num_threads     = min(num_parthds_stochy,nvars)
-      nvar_thread_max = (nvars+num_threads-1)/num_threads
       npes = mpp_npes()
       my_pe=mpp_pe()
       allocate(pelist(0:npes-1))
@@ -112,13 +106,7 @@
         lat1 = lat1s(l)
         if ( kind_dbl_prec == 8 ) then !------------------------------------
 
-!$omp parallel do private(thread,nvar_1,nvar_2,n2)
-          do thread=1,num_threads   ! start of thread loop ..............
-            nvar_1 = (thread-1)*nvar_thread_max + 1
-            nvar_2 = min(nvar_1+nvar_thread_max-1,nvars)
-
-            if (nvar_2 >= nvar_1) then
-              n2 = 2*(nvar_2-nvar_1+1)
+              n2 = 2*nvars
 
 !           compute the even and odd components of the fourier coefficients
 !
@@ -137,12 +125,12 @@
      &                   latl2-lat1+1,
      &                   (jcap+3-l)/2,
      &                   cons1,
-     &                   flnev(indev,2*nvar_1-1),
+     &                   flnev(indev,1),
      &                   len_trie_ls,
      &                   plnev(indev,lat1),
      &                   len_trie_ls,
      &                   cons0,
-     &                   apev(2*nvar_1-1,lat1),
+     &                   apev(1,lat1),
      &                   2*nvars
      &                   )
 !
@@ -161,24 +149,16 @@
      &                   latl2-lat1+1,
      &                  (jcap+2-l)/2,
      &                   cons1,
-     &                   flnod(indod,2*nvar_1-1),
+     &                   flnod(indod,1),
      &                   len_trio_ls,
      &                   plnod(indod,lat1),
      &                   len_trio_ls,
      &                   cons0,
-     &                   apod(2*nvar_1-1,lat1),
+     &                   apod(1,lat1),
      &                   2*nvars
      &                   )
 !
             endif
-          enddo   ! end of thread loop ..................................
-        else !------------------------------------------------------------
-!$omp parallel do private(thread,nvar_1,nvar_2)
-          do thread=1,num_threads   ! start of thread loop ..............
-            nvar_1 = (thread-1)*nvar_thread_max + 1
-            nvar_2 = min(nvar_1+nvar_thread_max-1,nvars)
-          enddo   ! end of thread loop ..................................
-        endif !-----------------------------------------------------------
 !
 ccxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 !

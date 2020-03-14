@@ -18,13 +18,11 @@
       use machine
       use spectral_layout_mod,      only : ipt_lats_node_a, lats_node_a_max,lon_dim_a,len_trie_ls,len_trio_ls &
                                       ,nodes,ls_max_node,lats_dim_a,ls_dim,lat1s_a
-      use stochy_layout_lag, only : lat1s_h
       use stochy_internal_state_mod
-      use spectral_layout_mod,only:lon_dims_a, num_parthds_stochy => ompthreads
-      use stochy_resol_def
+      use spectral_layout_mod,only:jcap,lon_dims_a,wgt_a,sinlat_a,coslat_a,colrad_a,wgtcs_a,rcs2_a,lats_nodes_h,global_lats_h,&
+                                   latg,latg2,lonf,lotls,lat1s_h
       use stochy_namelist_def
-      use fv_mp_mod, only : is_master
-      use stochy_gg_def, only : wgt_a,sinlat_a,coslat_a,colrad_a,wgtcs_a,rcs2_a,lats_nodes_h,global_lats_h
+      use mpp_mod, only : mpp_pe,mpp_root_pe
       use getcon_spectral_mod, only: getcon_spectral
       use get_ls_node_stochy_mod, only: get_ls_node_stochy
       use getcon_lag_stochy_mod, only: getcon_lag_stochy
@@ -48,9 +46,8 @@
 !      type(stochy_internal_state), pointer, intent(inout) :: gis_stochy
       type(stochy_internal_state), intent(inout) :: gis_stochy
       integer,                                    intent(out)   :: rc
-      integer           :: ierr, npe_single_member, iret,latghf
-      integer           :: num_parthds_stochy
-      integer           :: i, j, k, l, n, locl
+      integer           :: npe_single_member, iret,latghf
+      integer           :: i, l, locl
       logical           :: file_exists=.false.
       integer, parameter :: iunit=101
 
@@ -68,21 +65,9 @@
 
       lon_dim_a = lon_s + 2
       jcap=ntrunc
-      jcap1  = jcap+1
-      jcap2  = jcap+2
       latg   = lat_s
       latg2  = latg/2
       lonf   = lon_s
-      lnt    = jcap2*jcap1/2
-      lnuv   = jcap2*jcap1
-      lnt2   = lnt  + lnt
-      lnt22  = lnt2 + 1
-      lnte   = (jcap2/2)*((jcap2/2)+1)-1
-      lnto   = (jcap2/2)*((jcap2/2)+1)-(jcap2/2)
-      lnted  = lnte
-      lntod  = lnto
-
-      gis_stochy%lnt2 = lnt2
 
       allocate(lat1s_a(0:jcap))
       allocate(lon_dims_a(latg))
@@ -91,12 +76,11 @@
       allocate(wgtcs_a(latg2))
       allocate(rcs2_a(latg2))
 
-!      if (is_master()) then
-!        print*,'number of threads is',num_parthds_stochy
+!      if (mpp_pe==mpp_root_pe()) then
 !        print*,'number of mpi procs is',nodes
 !      endif
 !
-      ls_dim = (jcap1-1)/nodes+1
+      ls_dim = (jcap)/nodes+1
 !      print*,'allocating lonsperlat',latg
       allocate(gis_stochy%lonsperlat(latg))
 !      print*,'size=',size(gis_stochy%lonsperlat)
@@ -143,8 +127,6 @@
       allocate (  gis_stochy%lats_nodes_a(nodes) )
       allocate ( gis_stochy%global_lats_a(latg) )
 !
-      allocate (   gis_stochy%lats_nodes_ext(nodes) )
-      allocate ( gis_stochy%global_lats_ext(latg+2*jintmx+2*nypt*(nodes-1)) )
 
 ! internal parallel structure.   Weiyu.
 !---------------------------------------------------
@@ -225,18 +207,16 @@
          return
       end if
 !!
-      gis_stochy%lats_nodes_ext = 0
       call getcon_spectral(gis_stochy%ls_node,         gis_stochy%ls_nodes,           &
                            gis_stochy%max_ls_nodes,    gis_stochy%lats_nodes_a,       &
                            gis_stochy%global_lats_a,   gis_stochy%lonsperlat,         &
-                           gis_stochy%lats_node_a_max, gis_stochy%lats_nodes_ext,     &
-                           gis_stochy%global_lats_ext, gis_stochy%epse,               &
+                           gis_stochy%lats_node_a_max, gis_stochy%epse,               &
                            gis_stochy%epso,            gis_stochy%epsedn,             &
                            gis_stochy%epsodn,          gis_stochy%snnp1ev,            &
                            gis_stochy%snnp1od,         gis_stochy%plnev_a,            &
                            gis_stochy%plnod_a,         gis_stochy%pddev_a,            &
                            gis_stochy%pddod_a,         gis_stochy%plnew_a,            &
-                           gis_stochy%plnow_a,         gis_stochy%colat1)
+                           gis_stochy%plnow_a)
 !
       gis_stochy%lats_node_a     = gis_stochy%lats_nodes_a(gis_stochy%me+1)
       gis_stochy%ipt_lats_node_a = ipt_lats_node_a

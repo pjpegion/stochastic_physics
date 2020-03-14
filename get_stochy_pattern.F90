@@ -1,19 +1,18 @@
 module get_stochy_pattern_mod
  use machine, only : kind_dbl_prec, kind_evod
- use stochy_resol_def, only : latg, latg2, levs, lonf, skeblevs
  use spectral_layout_mod, only : ipt_lats_node_a, lat1s_a, lats_dim_a,      &
                                  lats_node_a, lon_dim_a, len_trie_ls,       &
-                                 len_trio_ls, ls_dim, nodes, stochy_la2ga
+                                 len_trio_ls, ls_dim, nodes, stochy_la2ga,  &
+                                 coslat_a, latg, latg2, levs, lonf, skeblevs
  use stochy_namelist_def, only : nsfcpert, ntrunc, stochini
  use stochy_data_mod, only : gg_lats, gg_lons, inttyp, nskeb, nshum, nsppt, &
-                             rad2deg, rnlat, rpattern_sfc, rpattern_skeb,   &
+                             rnlat, rpattern_sfc, rpattern_skeb,   &
                              rpattern_shum, rpattern_sppt, skebu_save,      &
                              skebv_save, skeb_vwts, skeb_vpts, wlon
- use stochy_gg_def, only : coslat_a
  use stochy_patterngenerator_mod, only: random_pattern, ndimspec,           &
                                         patterngenerator_advance
  use stochy_internal_state_mod, only: stochy_internal_state
- use fv_mp_mod, only : mp_reduce_sum,is_master
+ use mpp_mod,only: mpp_npes,mpp_pe,mpp_root_pe,mpp_sum
 #ifdef STOCHY_UNIT_TEST
 use standalone_stochy_module,   only: GFS_control_type, GFS_grid_type
 # else
@@ -27,111 +26,37 @@ use GFS_typedefs,       only: GFS_control_type, GFS_grid_type
  implicit none
  private
 
- public  get_random_pattern_fv3,get_random_pattern_fv3_vect
- public  get_random_pattern_sfc_fv3
+ public  get_random_pattern_vector   
+ public  get_random_pattern_sfc,get_random_pattern_scalar
  public  dump_patterns
  logical :: first_call=.true.
  contains
 
-subroutine get_random_pattern_fv3(rpattern,npatterns,&
-           gis_stochy,Model,Grid,nblks,maxlen,pattern_2d)
-
-! generate a random pattern for stochastic physics
- implicit none
- type(random_pattern), intent(inout)  :: rpattern(npatterns)
- type(stochy_internal_state)          :: gis_stochy
- type(GFS_control_type),   intent(in) :: Model
- type(GFS_grid_type),      intent(in) :: Grid(nblks)
- integer,intent(in)::   npatterns,nblks,maxlen
-
- integer i,j,l,lat,ierr,n,nn,k,nt
- real(kind=kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2d
-
- integer :: num2d
-! logical lprint
-
- real(kind=kind_dbl_prec), allocatable, dimension(:,:) :: workg
- real (kind=kind_dbl_prec)   glolal(lonf,gis_stochy%lats_node_a)
- integer kmsk0(lonf,gis_stochy%lats_node_a),len
- real(kind=kind_dbl_prec) :: globalvar,globalvar0
- real(kind=kind_dbl_prec) :: pattern_2d(nblks,maxlen)
- real(kind=kind_dbl_prec) :: pattern_1d(maxlen)
- real(kind=kind_dbl_prec), allocatable, dimension(:,:) :: rslmsk
- integer :: blk
-
- kmsk0 = 0
- glolal = 0.
- do n=1,npatterns
-    call patterngenerator_advance(rpattern(n),1,.false.)
-    call scalarspect_to_gaugrid(                       &
-         rpattern(n)%spec_e,rpattern(n)%spec_o,wrk2d,&
-         gis_stochy%ls_node,gis_stochy%ls_nodes,gis_stochy%max_ls_nodes,&
-         gis_stochy%lats_nodes_a,gis_stochy%global_lats_a,gis_stochy%lonsperlat,&
-         gis_stochy%plnev_a,gis_stochy%plnod_a,1)
-    glolal = glolal + wrk2d(:,:,1)
- enddo
-
- allocate(workg(lonf,latg))
- workg = 0.
-  do j=1,gis_stochy%lats_node_a
-     lat=gis_stochy%global_lats_a(ipt_lats_node_a-1+j)
-     do i=1,lonf
-        workg(i,lat) = glolal(i,j)
-     enddo
-  enddo
-
-   call mp_reduce_sum(workg,lonf,latg)
-   
-
-! interpolate to cube grid
-   allocate(rslmsk(lonf,latg))
-   do blk=1,nblks
-      len=size(Grid(blk)%xlat,1)
-      pattern_1d = 0
-      associate( tlats=>Grid(blk)%xlat*rad2deg,&
-                 tlons=>Grid(blk)%xlon*rad2deg )
-         call stochy_la2ga(workg,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
-                           pattern_1d(1:len),len,rslmsk,tlats,tlons)
-      pattern_2d(blk,:)=pattern_1d(:)
-      end associate
-   enddo
-   deallocate(rslmsk)
-   deallocate(workg)
-
-end subroutine get_random_pattern_fv3
-
-
-subroutine get_random_pattern_sfc_fv3(rpattern,npatterns,&
-           gis_stochy,Model,Grid,nblks,maxlen,pattern_3d)
+subroutine get_random_pattern_sfc(rpattern,npatterns,&
+           gis_stochy,pattern_3d)
 
 ! generate a random pattern for stochastic physics
  implicit none
  type(random_pattern), intent(inout) :: rpattern(npatterns)
- type(stochy_internal_state), target :: gis_stochy
- type(GFS_control_type),   intent(in) :: Model
- type(GFS_grid_type),      intent(in) :: Grid(nblks)
- integer,intent(in)::   npatterns,nblks,maxlen
+ type(stochy_internal_state), intent(in) :: gis_stochy
+ integer,intent(in)::   npatterns
 
- integer i,j,l,lat,ierr,n,nn,k,nt
+ integer i,j,lat,n,k
  real(kind=kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2d
 
- integer :: num2d
 ! logical lprint
 
  real(kind=kind_dbl_prec), allocatable, dimension(:,:) :: workg
  real (kind=kind_dbl_prec)   glolal(lonf,gis_stochy%lats_node_a)
- integer kmsk0(lonf,gis_stochy%lats_node_a),len
- real(kind=kind_dbl_prec) :: globalvar,globalvar0
- real(kind=kind_dbl_prec) :: pattern_3d(nblks,maxlen,nsfcpert)
- real(kind=kind_dbl_prec) :: pattern_1d(maxlen)
- real(kind=kind_dbl_prec), allocatable, dimension(:,:) :: rslmsk
- integer :: blk
+ integer kmsk0(lonf,gis_stochy%lats_node_a)
+ real(kind=kind_dbl_prec) :: pattern_3d(gis_stochy%nx,gis_stochy%ny,nsfcpert)
+ real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%ny)
 
  do k=1,nsfcpert
    kmsk0 = 0
    glolal = 0.
    do n=1,npatterns
-     if (is_master()) print *, 'Random pattern for SFC-PERTS in get_random_pattern_sfc_fv3: k, min, max ',k,minval(rpattern_sfc(n)%spec_o(:,:,k)), maxval(rpattern_sfc(n)%spec_o(:,:,k))
+     if (mpp_pe()==mpp_root_pe()) print *, 'Random pattern for SFC-PERTS in get_random_pattern_sfc: k, min, max ',k,minval(rpattern_sfc(n)%spec_o(:,:,k)), maxval(rpattern_sfc(n)%spec_o(:,:,k))
      call scalarspect_to_gaugrid(                       &
          rpattern(n)%spec_e(:,:,k),rpattern(n)%spec_o(:,:,k),wrk2d,&
          gis_stochy%ls_node,gis_stochy%ls_nodes,gis_stochy%max_ls_nodes,&
@@ -149,65 +74,57 @@ subroutine get_random_pattern_sfc_fv3(rpattern,npatterns,&
      enddo
    enddo
 
-   call mp_reduce_sum(workg,lonf,latg)
-   if (is_master()) print *, 'workg after mp_reduce_sum for SFC-PERTS in get_random_pattern_sfc_fv3: k, min, max ',k,minval(workg), maxval(workg)
+   call mpp_sum(workg,lonf*latg)
+   if (mpp_pe()==mpp_root_pe()) print *, 'workg after mpp_sum for SFC-PERTS in get_random_pattern_sfc: k, min, max ',k,minval(workg), maxval(workg)
 
 ! interpolate to cube grid
 
-   allocate(rslmsk(lonf,latg))
-   do blk=1,nblks
-      len=size(Grid(blk)%xlat,1)
+   do j=1,gis_stochy%ny
       pattern_1d = 0
-      associate( tlats=>Grid(blk)%xlat*rad2deg,&
-                 tlons=>Grid(blk)%xlon*rad2deg )
-         call stochy_la2ga(workg,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
-                           pattern_1d(1:len),len,rslmsk,tlats,tlons)
-      pattern_3d(blk,:,k)=pattern_1d(:)
+      associate( tlats=>gis_stochy%parent_lats(:,j),&
+                 tlons=>gis_stochy%parent_lons(:,j))
+      call stochy_la2ga(workg,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
+                        pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
+      pattern_3d(:,j,k)=pattern_1d(:)
       end associate
    enddo
-   if (is_master()) print *, '3D pattern for SFC-PERTS in get_random_pattern_sfc_fv3: k, min, max ',k,minval(pattern_3d(:,:,k)), maxval(pattern_3d(:,:,k))
-   deallocate(rslmsk)
+   if (mpp_pe()==mpp_root_pe()) print *, '3D pattern for SFC-PERTS in get_random_pattern_sfc: k, min, max ',k,minval(pattern_3d(:,:,k)), maxval(pattern_3d(:,:,k))
    deallocate(workg)
 
  enddo  ! loop over k, nsfcpert
 
-end subroutine get_random_pattern_sfc_fv3
+end subroutine get_random_pattern_sfc
 
 
-subroutine get_random_pattern_fv3_vect(rpattern,npatterns,&
-           gis_stochy,Model,Grid,nblks,maxlen,upattern_3d,vpattern_3d)
+subroutine get_random_pattern_vector(rpattern,npatterns,&
+           gis_stochy,upattern_3d,vpattern_3d)
 
 ! generate a random pattern for stochastic physics
  implicit none
- type(GFS_control_type),   intent(in) :: Model
- type(GFS_grid_type),      intent(in) :: Grid(nblks)
- type(stochy_internal_state), target :: gis_stochy
+ type(stochy_internal_state), intent(in) :: gis_stochy
  type(random_pattern), intent(inout) :: rpattern(npatterns)
 
  real(kind=kind_evod), dimension(len_trie_ls,2,1) ::  vrtspec_e,divspec_e
  real(kind=kind_evod), dimension(len_trio_ls,2,1) ::  vrtspec_o,divspec_o
- integer::   npatterns,nblks,blk,len,maxlen
+ integer::   npatterns
 
- real(kind=kind_dbl_prec) :: upattern_3d(nblks,maxlen,levs)
- real(kind=kind_dbl_prec) :: vpattern_3d(nblks,maxlen,levs)
- real(kind=kind_dbl_prec) :: pattern_1d(maxlen)
- real(kind=kind_dbl_prec), allocatable, dimension(:,:) :: rslmsk
- integer i,j,l,lat,ierr,n,nn,k,nt
+ real(kind=kind_dbl_prec) :: upattern_3d(gis_stochy%nx,gis_stochy%ny,levs)
+ real(kind=kind_dbl_prec) :: vpattern_3d(gis_stochy%nx,gis_stochy%ny,levs)
+ real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%ny)
+ integer i,j,lat,n,nn,k
  real(kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2du,wrk2dv
 
- integer :: num2d
 ! logical lprint
 
  real, allocatable, dimension(:,:) :: workgu,workgv
- integer kmsk0(lonf,gis_stochy%lats_node_a),i1,i2,j1
- real(kind=kind_dbl_prec) :: globalvar,globalvar0
+ integer kmsk0(lonf,gis_stochy%lats_node_a)
  kmsk0 = 0
  allocate(workgu(lonf,latg))
  allocate(workgv(lonf,latg))
- allocate(rslmsk(lonf,latg))
+ print*,'before first_call',skeblevs
  if (first_call) then
-    allocate(skebu_save(nblks,maxlen,skeblevs))
-    allocate(skebv_save(nblks,maxlen,skeblevs))
+    allocate(skebu_save(gis_stochy%nx,gis_stochy%ny,skeblevs))
+    allocate(skebv_save(gis_stochy%nx,gis_stochy%ny,skeblevs))
     do k=2,skeblevs
        workgu = 0.
        workgv = 0.
@@ -235,21 +152,20 @@ subroutine get_random_pattern_fv3_vect(rpattern,npatterns,&
           enddo
        enddo
     enddo
-    call mp_reduce_sum(workgu,lonf,latg)
-    call mp_reduce_sum(workgv,lonf,latg)
+    call mpp_sum(workgu,lonf*latg)
+    call mpp_sum(workgv,lonf*latg)
 ! interpolate to cube grid
-    do blk=1,nblks
-       len=size(Grid(blk)%xlat,1)
+    do j=1,gis_stochy%ny
        pattern_1d = 0
-          associate( tlats=>Grid(blk)%xlat*rad2deg,&
-                     tlons=>Grid(blk)%xlon*rad2deg )
-             call stochy_la2ga(workgu,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
-                               pattern_1d(1:len),len,rslmsk,tlats,tlons)
-       skebu_save(blk,:,k)=pattern_1d(:)
-             call stochy_la2ga(workgv,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
-                               pattern_1d(1:len),len,rslmsk,tlats,tlons)
-       skebv_save(blk,:,k)=-1*pattern_1d(:)
-          end associate
+       associate( tlats=>gis_stochy%parent_lats(1:gis_stochy%len(j),j),&
+                  tlons=>gis_stochy%parent_lons(1:gis_stochy%len(j),j))
+       call stochy_la2ga(workgu,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
+                        pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
+       skebu_save(:,j,k)=pattern_1d(:)
+       call stochy_la2ga(workgv,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
+                        pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
+       skebv_save(:,j,k)=-1*pattern_1d(:)
+       end associate
     enddo
   enddo
  endif
@@ -269,6 +185,7 @@ subroutine get_random_pattern_fv3_vect(rpattern,npatterns,&
 !    if (stochini.AND. first_call) then
 !       print*,'skipping advance'
 !     else
+       print*,'advancing'
        call patterngenerator_advance(rpattern(n),skeblevs,first_call)
 !    endif
 !   ke norm (convert streamfunction forcing to vorticity forcing)
@@ -293,35 +210,93 @@ subroutine get_random_pattern_fv3_vect(rpattern,npatterns,&
        enddo
     enddo
  enddo
- call mp_reduce_sum(workgu,lonf,latg)
- call mp_reduce_sum(workgv,lonf,latg)
+ call mpp_sum(workgu,lonf*latg)
+ call mpp_sum(workgv,lonf*latg)
 ! interpolate to cube grid
- do blk=1,nblks
-    len=size(Grid(blk)%xlat,1)
+ do j=1,gis_stochy%ny
     pattern_1d = 0
-    associate( tlats=>Grid(blk)%xlat*rad2deg,&
-               tlons=>Grid(blk)%xlon*rad2deg )
-       call stochy_la2ga(workgu,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
-                         pattern_1d(1:len),len,rslmsk,tlats,tlons)
-    skebu_save(blk,:,skeblevs)=pattern_1d(:)
-       call stochy_la2ga(workgv,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
-                         pattern_1d(1:len),len,rslmsk,tlats,tlons)
-    skebv_save(blk,:,skeblevs)=-1*pattern_1d(:)
+    associate( tlats=>gis_stochy%parent_lats(:,j),&
+               tlons=>gis_stochy%parent_lons(:,j))
+    call stochy_la2ga(workgu,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
+                      pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
+    skebu_save(:,j,skeblevs)=pattern_1d(:)
+    call stochy_la2ga(workgv,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
+                      pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
+    skebv_save(:,j,skeblevs)=-1*pattern_1d(:)
     end associate
   enddo
-  deallocate(rslmsk)
   deallocate(workgu)
   deallocate(workgv)
 ! interpolate in the vertical  ! consider moving to cubed sphere side,  more memory, but less interpolations
- do k=1,Model%levs
-    do blk=1,nblks
-       upattern_3d(blk,:,k) = skeb_vwts(k,1)*skebu_save(blk,:,skeb_vpts(k,1))+skeb_vwts(k,2)*skebu_save(blk,:,skeb_vpts(k,2))
-       vpattern_3d(blk,:,k) = skeb_vwts(k,1)*skebv_save(blk,:,skeb_vpts(k,1))+skeb_vwts(k,2)*skebv_save(blk,:,skeb_vpts(k,2))
+ print*,'looping through levs'
+ do k=1,levs
+    do j=1,gis_stochy%ny
+       upattern_3d(:,j,k) = skeb_vwts(k,1)*skebu_save(:,j,skeb_vpts(k,1))+skeb_vwts(k,2)*skebu_save(:,j,skeb_vpts(k,2))
+       vpattern_3d(:,j,k) = skeb_vwts(k,1)*skebv_save(:,j,skeb_vpts(k,1))+skeb_vwts(k,2)*skebv_save(:,j,skeb_vpts(k,2))
     enddo
  enddo
  first_call=.false.
 
-end subroutine get_random_pattern_fv3_vect
+end subroutine get_random_pattern_vector   
+
+subroutine get_random_pattern_scalar(rpattern,npatterns,&
+           gis_stochy,pattern_2d)
+!use MOM_grid, only : ocean_grid_type   
+
+! generate a random pattern for stochastic physics
+ implicit none
+ type(random_pattern), intent(inout)  :: rpattern(npatterns)
+ type(stochy_internal_state)          :: gis_stochy
+ integer,intent(in)::   npatterns
+
+ integer i,j,lat,n
+ real(kind=kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2d
+
+! logical lprint
+
+ real(kind=kind_dbl_prec), allocatable, dimension(:,:) :: workg
+ real (kind=kind_dbl_prec)   glolal(lonf,gis_stochy%lats_node_a)
+ integer kmsk0(lonf,gis_stochy%lats_node_a)
+ real(kind=kind_dbl_prec) :: pattern_2d(gis_stochy%nx,gis_stochy%ny)
+ real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%nx)
+
+ kmsk0 = 0
+ glolal = 0.
+ do n=1,npatterns
+    call patterngenerator_advance(rpattern(n),1,.false.)
+    call scalarspect_to_gaugrid(                       &
+         rpattern(n)%spec_e,rpattern(n)%spec_o,wrk2d,&
+         gis_stochy%ls_node,gis_stochy%ls_nodes,gis_stochy%max_ls_nodes,&
+         gis_stochy%lats_nodes_a,gis_stochy%global_lats_a,gis_stochy%lonsperlat,&
+         gis_stochy%plnev_a,gis_stochy%plnod_a,1)
+    glolal = glolal + wrk2d(:,:,1)
+ enddo
+
+ allocate(workg(lonf,latg))
+ workg = 0.
+  do j=1,gis_stochy%lats_node_a
+     lat=gis_stochy%global_lats_a(ipt_lats_node_a-1+j)
+     do i=1,lonf
+        workg(i,lat) = glolal(i,j)
+     enddo
+  enddo
+
+   call mpp_sum(workg,lonf*latg)
+
+! interpolate to cube grid
+   do j=1,gis_stochy%ny
+      pattern_1d = 0
+      associate( tlats=>gis_stochy%parent_lats(1:gis_stochy%len(j),j),&
+                 tlons=>gis_stochy%parent_lons(1:gis_stochy%len(j),j))
+      call stochy_la2ga(workg,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
+                        pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
+      pattern_2d(:,j)=pattern_1d(:)
+      end associate
+   enddo
+   deallocate(workg)
+
+end subroutine get_random_pattern_scalar
+!
 
 subroutine scalarspect_to_gaugrid(&
            trie_ls,trio_ls,datag,&
@@ -340,8 +315,8 @@ subroutine scalarspect_to_gaugrid(&
 ! local vars
       real(kind=kind_dbl_prec) for_gr_a_1(lon_dim_a,nlevs,lats_dim_a)
       real(kind=kind_dbl_prec) for_gr_a_2(lonf,nlevs,lats_dim_a)
-      integer              i,j,k
-      integer              l,lan,lat
+      integer              i,k
+      integer              lan,lat
       integer              lons_lat
 
       call sumfln_stochy(trie_ls,&
@@ -381,7 +356,7 @@ subroutine dump_patterns(sfile)
     character*120 :: sfile
     integer :: stochlun,k,n
     stochlun=99
-    if (is_master()) then
+    if (mpp_pe()==mpp_root_pe()) then
        if (nsppt > 0 .OR. nshum > 0 .OR. nskeb > 0) then
           OPEN(stochlun,file=sfile,form='unformatted')
           print*,'open ',sfile,' for output'
@@ -411,7 +386,7 @@ subroutine dump_patterns(sfile)
    type(random_pattern), intent(inout) :: rpattern
    integer, intent(in) :: lunptn,lev
    real(kind_dbl_prec), allocatable  :: pattern2d(:)
-   integer nm,nn,ierr,arrlen,isize
+   integer nm,nn,arrlen,isize
    integer,allocatable :: isave(:)
    arrlen=2*ndimspec
 
@@ -432,9 +407,9 @@ subroutine dump_patterns(sfile)
       pattern2d(nm)          = rpattern%spec_o(nn,1,lev)
       pattern2d(ndimspec+nm) = rpattern%spec_o(nn,2,lev)
    enddo
-   call mp_reduce_sum(pattern2d,arrlen)
+   call mpp_sum(pattern2d,arrlen)
   !  write only on root process
-   if (is_master()) then
+   if (mpp_pe()==mpp_root_pe()) then
       print*,'writing out random pattern (min/max/size)',&
       minval(pattern2d),maxval(pattern2d),size(pattern2d)
       !print*,'max/min pattern=',maxval(pattern2d),minval(pattern2d)
@@ -471,8 +446,8 @@ subroutine dump_patterns(sfile)
       real(kind=kind_dbl_prec) trio_ls(len_trio_ls,2,2*nlevs)
       real(kind=kind_dbl_prec) for_gr_a_1(lon_dim_a,2*nlevs,lats_dim_a)
       real(kind=kind_dbl_prec) for_gr_a_2(lonf,2*nlevs,lats_dim_a)
-      integer              i,j,k
-      integer              l,lan,lat
+      integer              i,k
+      integer              lan,lat
       integer              lons_lat
       real (kind=kind_dbl_prec) tx1
 

@@ -27,9 +27,6 @@ SRCS_f90 =  \
                 ./plumes.f90
 
 SRCS_f   =  \
-		./stochy_gg_def.f                           \
-		./stochy_resol_def.f                        \
-		./stochy_layout_lag.f                       \
 		./four_to_grid_stochy.f                     \
 		./glats_stochy.f                            \
 		./sumfln_stochy.f                           \

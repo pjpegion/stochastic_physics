@@ -7,8 +7,7 @@
       subroutine setlats_lag_stochy(lats_nodes_a, global_lats_a,
      &                       lats_nodes_h, global_lats_h, yhalo)
 !
-      use stochy_resol_def, only : latg
-      use spectral_layout_mod,   only : me,nodes
+      use spectral_layout_mod,   only : me,nodes,latg
       implicit none
 !
       integer              yhalo
