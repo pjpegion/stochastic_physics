@@ -54,6 +54,7 @@ gis_stochy%me=me
 gis_stochy%nodes=nodes
 gis_stochy%nx=maxlen
 gis_stochy%ny=nblks
+gis_stochy%yhalo=10
 allocate(gis_stochy%len(nblks))
 allocate(gis_stochy%parent_lons(gis_stochy%nx,gis_stochy%ny))
 allocate(gis_stochy%parent_lats(gis_stochy%nx,gis_stochy%ny))
@@ -222,7 +223,7 @@ real,intent(in) :: geoLonT(nx,ny),geoLatT(nx,ny)
 logical,intent(inout) :: do_stoch
 
 real :: dx
-integer :: k,latghf,blk,km
+integer :: k,latghf,km
 integer :: iret
 rad2deg=180.0/con_pi
 nodes=mpp_npes()

@@ -58,21 +58,25 @@
 !       set non-polar south yhalos
          jpt_h = 0
          do nn=1,nodes-1
-            jpt_h   = jpt_h + lats_nodes_h(nn)
-            lat_val = global_lats_h(jpt_h-yhalo)
-            do jj=1,yhalo
-               global_lats_h(jpt_h-yhalo+jj) = min(lat_val+jj,latg)
-            enddo
+            if (lats_nodes_h(nn).GT.0) then
+               jpt_h   = jpt_h + lats_nodes_h(nn)
+               lat_val = global_lats_h(jpt_h-yhalo)
+               do jj=1,yhalo
+                  global_lats_h(jpt_h-yhalo+jj) = min(lat_val+jj,latg)
+               enddo
+            endif
          enddo
 !
 !       set non-polar north yhalos
          jpt_h = 0
          do nn=1,nodes-1
-            jpt_h   = jpt_h + lats_nodes_h(nn)
-            lat_val = global_lats_h(jpt_h+yhalo+1)
-            do jj=1,yhalo
-               global_lats_h(jpt_h+yhalo-(jj-1)) = max(lat_val-jj,1)
-            enddo
+            if (lats_nodes_h(nn).GT.0) then
+               jpt_h   = jpt_h + lats_nodes_h(nn)
+               lat_val = global_lats_h(jpt_h+yhalo+1)
+               do jj=1,yhalo
+                  global_lats_h(jpt_h+yhalo-(jj-1)) = max(lat_val-jj,1)
+               enddo
+            endif
          enddo
 !
       endif

@@ -50,7 +50,7 @@ subroutine get_random_pattern_sfc(rpattern,npatterns,&
  real (kind=kind_dbl_prec)   glolal(lonf,gis_stochy%lats_node_a)
  integer kmsk0(lonf,gis_stochy%lats_node_a)
  real(kind=kind_dbl_prec) :: pattern_3d(gis_stochy%nx,gis_stochy%ny,nsfcpert)
- real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%ny)
+ real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%nx)
 
  do k=1,nsfcpert
    kmsk0 = 0
@@ -110,7 +110,7 @@ subroutine get_random_pattern_vector(rpattern,npatterns,&
 
  real(kind=kind_dbl_prec) :: upattern_3d(gis_stochy%nx,gis_stochy%ny,levs)
  real(kind=kind_dbl_prec) :: vpattern_3d(gis_stochy%nx,gis_stochy%ny,levs)
- real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%ny)
+ real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%nx)
  integer i,j,lat,n,nn,k
  real(kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2du,wrk2dv
 

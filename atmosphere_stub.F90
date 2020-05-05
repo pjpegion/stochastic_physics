@@ -422,8 +422,8 @@ contains
       do n=1,ntimes
          nt = ntimes !- n
 
-!$OMP parallel do default(none) shared(km,is,ie,js,je,npx,npy, &
-!$OMP                                  q,nt,isd,jsd,gridstruct,bd) &
+!$OMP parallel do default(none) shared(km,npx,npy,ie,je,is,js, &
+!$OMP                                  q,nt,ied,jed,isd,jsd,gridstruct,bd) &
 !$OMP                          private(q2)
          do k=1,km
 
@@ -519,7 +519,7 @@ contains
          nt = ntimes !- n
 
 !$OMP parallel do default(none) shared(km,is,ie,js,je,npx,npy, &
-!$OMP                                  q,nt,isd,jsd,gridstruct,bd) &
+!$OMP                                  q,nt,isd,ied,jsd,jed,gridstruct,bd) &
 !$OMP                          private(q2)
          do k=1,km
 

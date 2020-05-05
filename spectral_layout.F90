@@ -197,7 +197,7 @@ contains
 !
 !  quasi-bilinear interpolation
 !
-!$omp parallel private(j,j1,j2,jqx,kxs,kxt)                   &
+!$omp parallel private(j,j1,j2)                   &
 !$omp private(alamd,denom,rnume,aphi,x,y,wsum,wsumiv,sum1,sum2)       &
 !$omp private(sum3,sum4,wi1j1,wi2j1,wi1j2,wi2j2)  &
 !$omp private(sumn,sums)

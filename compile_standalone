@@ -7,8 +7,8 @@ INCS="-I. -I${SRC_DIR}FV3/gfsphysics/ -I${SRC_DIR}/FMS/include -I${SRC_DIR}/FV3/
 #OPT_FLAGS="-C -traceback "
 OPT_FLAGS="-g -O0 -check all -check noarg_temp_created -check nopointer -warn -warn noerrors -fp-stack-check -fstack-protector-all -fpe0 -debug -traceback -ftrapuv"
 #OPT_FLAGS='-traceback -O2 -debug minimal -fp-model source -qoverride-limits -qopt-prefetch=3'
-FLAGS64=$OPT_FLAGS" -real-size 64 -DSTOCHY_UNIT_TEST -c "$INCS
-FLAGS=$OPT_FLAGS" -DSTOCHY_UNIT_TEST -c "$INCS
+FLAGS64=$OPT_FLAGS" -qopenmp -real-size 64 -DSTOCHY_UNIT_TEST -c "$INCS
+FLAGS=$OPT_FLAGS" -qopenmp -DSTOCHY_UNIT_TEST -c "$INCS
 echo $FLAGS
 if [ $compile_all -eq 1 ];then
    rm -f *.i90 *.i *.o *.mod lib*a
