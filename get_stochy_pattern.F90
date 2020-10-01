@@ -14,11 +14,11 @@ module get_stochy_pattern_mod
  use stochy_internal_state_mod, only: stochy_internal_state
  use mpp_mod,only: mpp_npes,mpp_pe,mpp_root_pe,mpp_sum
 #ifdef STOCHY_UNIT_TEST
-use standalone_stochy_module,   only: GFS_control_type, GFS_grid_type
-# else
-use GFS_typedefs,       only: GFS_control_type, GFS_grid_type
-#endif
+ use standalone_stochy_module,   only: GFS_control_type, GFS_grid_type,random_seed
+#else
+ use GFS_typedefs,       only: GFS_control_type, GFS_grid_type
  use mersenne_twister, only: random_seed
+#endif
  use dezouv_stochy_mod, only: dezouv_stochy
  use dozeuv_stochy_mod, only: dozeuv_stochy
  use four_to_grid_mod, only: four_to_grid
@@ -249,7 +249,7 @@ subroutine get_random_pattern_scalar(rpattern,npatterns,&
  type(stochy_internal_state)          :: gis_stochy
  integer,intent(in)::   npatterns
 
- integer i,j,lat,n
+ integer i,j,lat,n,pe_print
  real(kind=kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2d
 
 ! logical lprint
@@ -259,6 +259,11 @@ subroutine get_random_pattern_scalar(rpattern,npatterns,&
  integer kmsk0(lonf,gis_stochy%lats_node_a)
  real(kind=kind_dbl_prec) :: pattern_2d(gis_stochy%nx,gis_stochy%ny)
  real(kind=kind_dbl_prec) :: pattern_1d(gis_stochy%nx)
+ pe_print=111
+ !if (mpp_pe()==pe_print) then
+ !   print*,'in get_random_pattern_scalar',npatterns
+ !   print*,'nx,ny',gis_stochy%nx,gis_stochy%ny
+ !endif
 
  kmsk0 = 0
  glolal = 0.
@@ -282,18 +287,47 @@ subroutine get_random_pattern_scalar(rpattern,npatterns,&
   enddo
 
    call mpp_sum(workg,lonf*latg)
+   !if (mpp_pe()==pe_print) then
+   !   print*,'before interpolate',maxval(workg),minval(workg)
+   !endif
 
 ! interpolate to cube grid
+ !     if (mpp_pe()==pe_print) then
+ !           write(34) real(workg,kind=4)
+ !     endif
    do j=1,gis_stochy%ny
       pattern_1d = 0
       associate( tlats=>gis_stochy%parent_lats(1:gis_stochy%len(j),j),&
                  tlons=>gis_stochy%parent_lons(1:gis_stochy%len(j),j))
+   !   if (mpp_pe()==pe_print) then
+   !      if (j.EQ.1.OR.j.EQ.gis_stochy%ny) then
+   !      !if (j.GT.100) then
+   !      do i=1,gis_stochy%len(j) 
+   !         print*,'lat,lon',j,gis_stochy%parent_lats(i,j),gis_stochy%parent_lons(i,j)
+   !         print*,'lats',j,minval(gis_stochy%parent_lats(1:gis_stochy%len(j),j)),maxval(gis_stochy%parent_lats(1:gis_stochy%len(j),j))
+   !         print*,'lons',j,minval(gis_stochy%parent_lons(1:gis_stochy%len(j),j)),maxval(gis_stochy%parent_lons(1:gis_stochy%len(j),j))
+   !         !print*,'lonf,latg',lonf,latg,gis_stochy%nx,gis_stochy%ny,gis_stochy%len(j)
+   !      enddo
+   !      endif
+   !   endif
       call stochy_la2ga(workg,lonf,latg,gg_lons,gg_lats,wlon,rnlat,&
                         pattern_1d(1:gis_stochy%len(j)),gis_stochy%len(j),tlats,tlons)
       pattern_2d(:,j)=pattern_1d(:)
+   !   if (mpp_pe()==pe_print) then
+   !      print*,'gg_lats=',gg_lats(1),gg_lats(latg)
+   !      print*,'after interpolate',j,maxval(pattern_1d),minval(pattern_1d)
+   !      if (j.GT.110) then
+   !      do i=1,gis_stochy%len(j) 
+   !         print*,'lat,lon',j,gis_stochy%parent_lats(i,j),gis_stochy%parent_lons(i,j),pattern_1d(i)
+   !      enddo
+   !      endif
+   !   endif
       end associate
    enddo
    deallocate(workg)
+   !if (mpp_pe()==pe_print) then
+   !   print*,'outside loop',mpp_pe(),maxval(pattern_2d),minval(pattern_2d)
+   !endif
 
 end subroutine get_random_pattern_scalar
 !

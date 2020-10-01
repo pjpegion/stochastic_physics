@@ -77,7 +77,7 @@ if (Model%do_sppt.neqv.do_sppt) then
    return
 else if (Model%do_shum.neqv.do_shum) then
    write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
-                   & ' namelist settings do_shum and shum'
+                   & ' namelist settings do_shum and shum',Model%do_shum,do_shum
    return
 else if (Model%do_skeb.neqv.do_skeb) then
    write(0,'(*(a))') 'Logic error in stochastic_physics_init: incompatible', &
@@ -186,9 +186,9 @@ latghf=latg/2
 !print *,'define interp weights',latghf,lonf
 !print *,allocated(gg_lats),allocated(gg_lons)
 allocate(gg_lats(latg))
-!print *,'aloocated lats'
+print *,'aloocated lats'
 allocate(gg_lons(lonf))
-!print *,'aloocated lons'
+print *,'aloocated lons'
 do k=1,latghf
    gg_lats(k)=-1.0*colrad_a(latghf-k+1)*rad2deg
    gg_lats(latg-k+1)=-1*gg_lats(k)
@@ -204,7 +204,7 @@ RNLAT=gg_lats(1)*2-gg_lats(2)
 !print *,'done with init_stochastic_physics'
 
 end subroutine init_stochastic_physics
-subroutine init_stochastic_physics_ocn(delt,geoLonT,geoLatT,nx,ny,nz,do_stoch)
+subroutine init_stochastic_physics_ocn(delt,geoLonT,geoLatT,nx,ny,nz,do_stoch,do_epbl_out,do_sppt_out)
 use stochy_data_mod, only : init_stochdata_ocn,gg_lats,gg_lons,&
                             rad2deg,INTTYP,wlon,rnlat,gis_stochy_ocn
 use spectral_layout_mod , only : latg,lonf,colrad_a,me,nodes
@@ -220,7 +220,7 @@ integer,intent(in) :: nx,ny,nz
 real,intent(in) :: geoLonT(nx,ny),geoLatT(nx,ny)
 !integer,intent(in) :: me,master,num_pes,pelist(0:num_pes-1)
 !integer,intent(in) :: num_pes,pelist(0:num_pes-1)
-logical,intent(inout) :: do_stoch
+logical,intent(inout) :: do_stoch,do_epbl_out,do_sppt_out
 
 real :: dx
 integer :: k,latghf,km
@@ -246,7 +246,12 @@ print*,'in init',nx,ny,nz
 print*,'init_stochastic_physics_ocn',maxval(geoLonT),size(geoLonT(:,1)),size(geoLonT(1,:))
 print*,'ocn me,master=',mpp_pe(),mpp_root_pe()
 call init_stochdata_ocn(km,delt,iret)
-do_stoch=do_ocnp
+do_stoch=.false.
+do_epbl_out=do_epbl
+do_sppt_out=do_ocnsppt
+if (do_epbl) do_stoch=.true.
+if (do_ocnsppt) do_stoch=.true.
+if (.not. do_stoch) return
 
 ! get interpolation weights
 ! define gaussian grid lats and lons
@@ -254,15 +259,15 @@ latghf=latg/2
 !print *,'define interp weights',latghf,lonf
 !print *,allocated(gg_lats),allocated(gg_lons)
 allocate(gg_lats(latg))
-!print *,'aloocated lats'
+print *,'aloocated lats',latg
 allocate(gg_lons(lonf))
-!print *,'aloocated lons'
+print *,'aloocated lons',lonf
 do k=1,latghf
    gg_lats(k)=-1.0*colrad_a(latghf-k+1)*rad2deg
    gg_lats(latg-k+1)=-1*gg_lats(k)
 enddo
 dx=360.0/lonf
-!print*,'dx=',dx
+print*,'dx=',dx
 do k=1,lonf
   gg_lons(k)=dx*(k-1)
 enddo
@@ -352,27 +357,40 @@ deallocate(tmpv_wts)
 
 end subroutine run_stochastic_physics
 
-subroutine run_stochastic_physics_ocn(t_rp)
+subroutine run_stochastic_physics_ocn(t_rp,sppt_wts)
 !use MOM_forcing_type, only : mech_forcing
 !use MOM_grid, only : ocean_grid_type   
 use stochy_internal_state_mod
-use stochy_data_mod, only : nocnp,rpattern_ocnp, gis_stochy_ocn
+use stochy_data_mod, only : nepbl,nocnsppt,rpattern_epbl,rpattern_ocnsppt, gis_stochy_ocn
 use get_stochy_pattern_mod,only : get_random_pattern_scalar
 use stochy_namelist_def
 use mpp_mod, only : mpp_pe
 implicit none
 !type(ocean_grid_type),       intent(in) :: G
-real, intent(inout) :: t_rp(:,:)
+real, intent(inout) :: t_rp(:,:),sppt_wts(:,:)
 real, allocatable :: tmp_wts(:,:)
-
-print*,'in run_stochastic_physics_ocn',mpp_pe(),do_ocnp
-if  (.NOT. do_ocnp) return
-
 allocate(tmp_wts(gis_stochy_ocn%nx,gis_stochy_ocn%ny))
+!if (mpp_pe()==1) then
+!   print*,'in run_stochastic_physics_ocn',mpp_pe(),do_epbl,do_ocnsppt,gis_stochy_ocn%nx,gis_stochy_ocn%ny
+!   print*,'size of t_rp,sppt_wts',size(t_rp(:,1)),size(t_rp(1,:)),size(sppt_wts(:,1)),size(sppt_wts(1,:))
+!   print*,'size of tmp_wts',size(tmp_wts(:,1)),size(tmp_wts(1,:))
+!endif
+
 !if (mod(Model%kdt,nsocnp) == 1 .or. nsocnp == 1) then
-   call get_random_pattern_scalar(rpattern_ocnp,nocnp,gis_stochy_ocn,tmp_wts)
+if (do_epbl) then
+   call get_random_pattern_scalar(rpattern_epbl,nepbl,gis_stochy_ocn,tmp_wts)
    t_rp=2.0/(1+exp(-1*tmp_wts))
-   if (mpp_pe().LT.3) print*,'tmp_wts=',tmp_wts(3,3)
+   print*,'in run_stochastic_physics_ocn',minval(t_rp),maxval(t_rp)
+else
+   t_rp=1.0
+endif
+if (do_ocnsppt) then
+   call get_random_pattern_scalar(rpattern_ocnsppt,nocnsppt,gis_stochy_ocn,tmp_wts)
+   sppt_wts=2.0/(1+exp(-1*tmp_wts))
+   print*,'in run_stochastic_physics_ocn',minval(sppt_wts),maxval(sppt_wts)
+else
+   sppt_wts=1.0
+endif
 !endif
 deallocate(tmp_wts)
 

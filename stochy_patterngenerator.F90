@@ -4,8 +4,11 @@ module stochy_patterngenerator_mod
  ! in spherical harmonic space.
  use machine
  use spectral_layout_mod, only: len_trie_ls, len_trio_ls, ls_dim, ls_max_node
-! use mersenne_twister_stochy, only: random_setseed,random_gauss,random_stat
+#ifdef STOCHY_UNIT_TEST
+ use standalone_stochy_module,   only: random_setseed,random_gauss,random_stat
+#else
  use mersenne_twister, only: random_setseed,random_gauss,random_stat
+#endif
  use mpp_mod,only: mpp_pe,mpp_root_pe,mpp_broadcast
  implicit none
  private

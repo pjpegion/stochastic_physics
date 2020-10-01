@@ -141,7 +141,7 @@ module fv_control_stub_mod
    use fv_grid_tools_mod,   only: init_grid
    use fv_mp_mod,      only: mp_start, mp_assign_gid, domain_decomp
    use fv_mp_mod,      only: ng, switch_current_Atm
-   use fv_mp_mod,      only: broadcast_domains, mp_barrier, is_master, setup_master
+   use fv_mp_mod,      only: broadcast_domains
 !!! CLEANUP: should be replaced by a getter function?
    use test_cases_mod,      only: test_case, bubble_do, alpha, nsolitons, soliton_Umax, soliton_size
    use fv_timing_mod,       only: timing_on, timing_off, timing_init, timing_prt
@@ -425,7 +425,7 @@ module fv_control_stub_mod
                call setup_pointers(Atm(n))
 
                if ( (Atm(n)%bd%iec-Atm(n)%bd%isc+1).lt.4 .or. (Atm(n)%bd%jec-Atm(n)%bd%jsc+1).lt.4 ) then
-                  if (is_master()) write(*,'(6I6)') Atm(n)%bd%isc, Atm(n)%bd%iec, Atm(n)%bd%jsc, Atm(n)%bd%jec, n
+                  if (mpp_pe()==mpp_root_pe()) write(*,'(6I6)') Atm(n)%bd%isc, Atm(n)%bd%iec, Atm(n)%bd%jsc, Atm(n)%bd%jec, n
                   call mpp_error(FATAL,'Domain Decomposition:  Cubed Sphere compute domain has a &
                        &minium requirement of 4 points in X and Y, respectively')
                end if
@@ -445,7 +445,7 @@ module fv_control_stub_mod
             call grid_utils_init(Atm(n), npx, npy, npz, non_ortho, grid_type, c2l_ord)
 
             !!!CLEANUP: Are these correctly writing out on all pes?
-            if ( is_master() ) then
+            if ( mpp_pe()==mpp_root_pe() ) then
                sdt =  dt_atmos/real(n_split*k_split*abs(p_split))
                write(*,*) ' '
                write(*,*) 'Divergence damping Coefficients'
@@ -671,7 +671,7 @@ module fv_control_stub_mod
       read (input_nml_file,fv_core_nml,iostat=ios)
       ierr = check_nml_error(ios,'fv_core_nml')
 #ifdef MULTI_GASES
-      if( is_master() ) print *,' enter multi_gases: ncnst = ',ncnst
+      if( mpp_pe()==mpp_root_pe() ) print *,' enter multi_gases: ncnst = ',ncnst
       allocate (rilist(0:ncnst))
       allocate (cpilist(0:ncnst))
       rilist     =    0.0
@@ -705,7 +705,7 @@ module fv_control_stub_mod
       ierr = check_nml_error(ios,'fv_core_nml')
 
 #ifdef MULTI_GASES
-      if( is_master() ) print *,' enter multi_gases: ncnst = ',ncnst
+      if( mpp_pe()==mpp_root_pe() ) print *,' enter multi_gases: ncnst = ',ncnst
       allocate (rilist(0:ncnst))
       allocate (cpilist(0:ncnst))
       rilist     =    0.0
@@ -784,12 +784,12 @@ module fv_control_stub_mod
 
       if ( n_split == 0 ) then
            n_split = nint( real(n0split)/real(k_split*abs(p_split)) * stretch_fac + 0.5 )
-           if(is_master()) write(*,*) 'For k_split (remapping)=', k_split
-           if(is_master()) write(*,198) 'n_split is set to ', n_split, ' for resolution-dt=',npx,npy,ntiles,dt_atmos
+           if(mpp_pe()==mpp_root_pe()) write(*,*) 'For k_split (remapping)=', k_split
+           if(mpp_pe()==mpp_root_pe()) write(*,198) 'n_split is set to ', n_split, ' for resolution-dt=',npx,npy,ntiles,dt_atmos
       else
-          if(is_master()) write(*,199) 'Using n_split from the namelist: ', n_split
+          if(mpp_pe()==mpp_root_pe()) write(*,199) 'Using n_split from the namelist: ', n_split
       endif
-      if (is_master() .and. n == 1 .and. abs(p_split) > 1) then
+      if (mpp_pe()==mpp_root_pe() .and. n == 1 .and. abs(p_split) > 1) then
          write(*,199) 'Using p_split = ', p_split
       endif
 
@@ -860,7 +860,7 @@ module fv_control_stub_mod
 !      d_ext = d_ext * d_fac
 !      vtdm4 = vtdm4 * d_fac
       if (old_divg_damp) then
-        if (is_master()) write(*,*) " fv_control: using original values for divergence damping "
+        if (mpp_pe()==mpp_root_pe()) write(*,*) " fv_control: using original values for divergence damping "
         d2_bg_k1 = 6.         ! factor for d2_bg (k=1)  - default(4.)
         d2_bg_k2 = 4.         ! factor for d2_bg (k=2)  - default(2.)
         d2_divg_max_k1 = 0.02 ! d2_divg max value (k=1) - default(0.05)
@@ -878,16 +878,16 @@ module fv_control_stub_mod
          if ( m_split==0 ) then
             m_split = 1. + abs(dt_atmos)/real(k_split*n_split*abs(p_split))
             if (abs(a_imp) < 0.5) then
-               if(is_master()) write(*,199) 'm_split is set to ', m_split
+               if(mpp_pe()==mpp_root_pe()) write(*,199) 'm_split is set to ', m_split
             endif
          endif
-         if(is_master()) then
+         if(mpp_pe()==mpp_root_pe()) then
             write(*,*) 'Off center implicit scheme param=', a_imp
             write(*,*) ' p_fac=', p_fac
          endif
       endif
 
-      if(is_master()) then
+      if(mpp_pe()==mpp_root_pe()) then
          if (n_sponge >= 0) write(*,199) 'Using n_sponge : ', n_sponge
          write(*,197) 'Using non_ortho : ', non_ortho
       endif
@@ -1048,9 +1048,6 @@ module fv_control_stub_mod
          Atm(1)%pelist = Atm(1)%pelist + mpp_root_pe()
          call mpp_declare_pelist(Atm(1)%pelist)
          call mpp_set_current_pelist(Atm(1)%pelist)
-         !Now set in domain_decomp
-         !masterproc = Atm(1)%pelist(1)
-         call setup_master(Atm(1)%pelist)
          grids_on_this_pe(1) = .true.
          Atm(1)%npes_this_grid = npes
 
@@ -1099,9 +1096,6 @@ module fv_control_stub_mod
             Atm(n)%npes_this_grid = size(Atm(n)%pelist)
             if (ANY(gid == Atm(n)%pelist)) then
                   call mpp_set_current_pelist(Atm(n)%pelist)
-                  !now set in domain_decomp
-                  !masterproc = Atm(n)%pelist(1)
-                  call setup_master(Atm(n)%pelist)
                   grids_on_this_pe(n) = .true.
                   exit
                endif

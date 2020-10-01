@@ -117,7 +117,7 @@ contains
               if(outlat(j).le.rinlat(jx)) jindx1(j) = jx
             enddo
           enddo
-          do j=i,len
+          do j=1,len
             jq = jindx1(j)
             aphi=outlat(j)
             if(jq.ge.1 .and. jq .lt. jmxin) then
@@ -197,10 +197,6 @@ contains
 !
 !  quasi-bilinear interpolation
 !
-!$omp parallel private(j,j1,j2)                   &
-!$omp private(alamd,denom,rnume,aphi,x,y,wsum,wsumiv,sum1,sum2)       &
-!$omp private(sum3,sum4,wi1j1,wi2j1,wi1j2,wi2j2)  &
-!$omp private(sumn,sums)
         do i=1,len
           y  = ddy(i)
           j1 = jindx1(i)
@@ -251,7 +247,6 @@ contains
             endif            ! if j1 .ne. j2
           endif
         enddo
-!$omp end parallel
         do i=1,len
           j1 = jindx1(i)
           j2 = jindx2(i)
@@ -263,7 +258,6 @@ contains
             stop
           endif
         enddo
-!
       return
 !
    end subroutine stochy_la2ga

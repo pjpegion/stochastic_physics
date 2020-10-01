@@ -13,7 +13,11 @@ module stochy_data_mod
  use initialize_spectral_mod, only: initialize_spectral
  use stochy_internal_state_mod
 ! use mersenne_twister_stochy, only : random_seed
+#ifdef STOCHY_UNIT_TEST
+ use standalone_stochy_module,   only: random_seed
+#else
  use mersenne_twister, only : random_seed
+#endif
  use compns_stochy_mod, only : compns_stochy
 
  implicit none
@@ -21,8 +25,9 @@ module stochy_data_mod
  public :: init_stochdata,init_stochdata_ocn
 
  type(random_pattern), public, save, allocatable, dimension(:) :: &
-       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_ocnp
- integer, public :: nocnp=0
+       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl,rpattern_ocnsppt
+ integer, public :: nepbl=0
+ integer, public :: nocnsppt=0
  integer, public :: nsppt=0
  integer, public :: nshum=0
  integer, public :: nskeb=0
@@ -352,44 +357,79 @@ if (npsfc > 0) then
    iret=0
    call compns_stochy_ocn (delt,iret)
    if(mpp_pe()==mpp_root_pe()) print*,'in init stochdata_ocn',mpp_npes(),lat_s
-   if ( .NOT. do_ocnp ) return
+   if ( (.NOT. do_epbl) .AND. (.NOT. do_ocnsppt) ) return
    call initialize_spectral(gis_stochy_ocn, iret)
    if (iret/=0) return
    allocate(noise_e(len_trie_ls,2),noise_o(len_trio_ls,2))
 ! determine number of random patterns to be used for each scheme.
-   do n=1,size(ocnp)
-     if (ocnp(n) > 0) then
-        nocnp=nocnp+1
+   do n=1,size(epbl)
+     if (epbl(n) > 0) then
+        nepbl=nepbl+1
      else
         exit
      endif
    enddo
 
-   if (nocnp > 0) allocate(rpattern_ocnp(nocnp))
+   do n=1,size(ocnsppt)
+     if (ocnsppt(n) > 0) then
+        nocnsppt=nocnsppt+1
+     else
+        exit
+     endif
+   enddo
 
-   if (nocnp > 0) then
-       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for OCNP'
-       call patterngenerator_init(ocnp_lscale,ocnpint,ocnp_tau,ocnp,iseed_ocnp,rpattern_ocnp, &
-           lonf,latg,jcap,gis_stochy_ocn%ls_node,nocnp,1,0,new_lscale)
-       do n=1,nocnp
-          call getnoise(rpattern_ocnp(n),noise_e,noise_o)
+   if (nepbl > 0) allocate(rpattern_epbl(nepbl))
+   if (nocnsppt > 0) allocate(rpattern_ocnsppt(nocnsppt))
+
+   if (nepbl > 0) then
+       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for epbl'
+       call patterngenerator_init(epbl_lscale,epblint,epbl_tau,epbl,iseed_epbl,rpattern_epbl, &
+           lonf,latg,jcap,gis_stochy_ocn%ls_node,nepbl,1,0,new_lscale)
+       do n=1,nepbl
+          call getnoise(rpattern_epbl(n),noise_e,noise_o)
           do nn=1,len_trie_ls
-             rpattern_ocnp(n)%spec_e(nn,1,1)=noise_e(nn,1)
-             rpattern_ocnp(n)%spec_e(nn,2,1)=noise_e(nn,2)
-             nm = rpattern_ocnp(n)%idx_e(nn)
+             rpattern_epbl(n)%spec_e(nn,1,1)=noise_e(nn,1)
+             rpattern_epbl(n)%spec_e(nn,2,1)=noise_e(nn,2)
+             nm = rpattern_epbl(n)%idx_e(nn)
              if (nm .eq. 0) cycle
-             rpattern_ocnp(n)%spec_e(nn,1,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_e(nn,1,1)*rpattern_ocnp(n)%varspectrum(nm)
-             rpattern_ocnp(n)%spec_e(nn,2,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_e(nn,2,1)*rpattern_ocnp(n)%varspectrum(nm)
+             rpattern_epbl(n)%spec_e(nn,1,1) = rpattern_epbl(n)%stdev*rpattern_epbl(n)%spec_e(nn,1,1)*rpattern_epbl(n)%varspectrum(nm)
+             rpattern_epbl(n)%spec_e(nn,2,1) = rpattern_epbl(n)%stdev*rpattern_epbl(n)%spec_e(nn,2,1)*rpattern_epbl(n)%varspectrum(nm)
           enddo
           do nn=1,len_trio_ls
-             rpattern_ocnp(n)%spec_o(nn,1,1)=noise_o(nn,1)
-             rpattern_ocnp(n)%spec_o(nn,2,1)=noise_o(nn,2)
-             nm = rpattern_ocnp(n)%idx_o(nn)
+             rpattern_epbl(n)%spec_o(nn,1,1)=noise_o(nn,1)
+             rpattern_epbl(n)%spec_o(nn,2,1)=noise_o(nn,2)
+             nm = rpattern_epbl(n)%idx_o(nn)
           if (nm .eq. 0) cycle
-             rpattern_ocnp(n)%spec_o(nn,1,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_o(nn,1,1)*rpattern_ocnp(n)%varspectrum(nm)
-            rpattern_ocnp(n)%spec_o(nn,2,1) = rpattern_ocnp(n)%stdev*rpattern_ocnp(n)%spec_o(nn,2,1)*rpattern_ocnp(n)%varspectrum(nm)
+             rpattern_epbl(n)%spec_o(nn,1,1) = rpattern_epbl(n)%stdev*rpattern_epbl(n)%spec_o(nn,1,1)*rpattern_epbl(n)%varspectrum(nm)
+            rpattern_epbl(n)%spec_o(nn,2,1) = rpattern_epbl(n)%stdev*rpattern_epbl(n)%spec_o(nn,2,1)*rpattern_epbl(n)%varspectrum(nm)
           enddo
-          call patterngenerator_advance(rpattern_ocnp(n),1,.false.)
+          call patterngenerator_advance(rpattern_epbl(n),1,.false.)
+       enddo
+   endif
+
+   if (nocnsppt > 0) then
+       if (mpp_pe()==mpp_root_pe()) print *, 'Initialize random pattern for ocnsppt'
+       call patterngenerator_init(ocnsppt_lscale,ocnspptint,ocnsppt_tau,ocnsppt,iseed_ocnsppt,rpattern_ocnsppt, &
+           lonf,latg,jcap,gis_stochy_ocn%ls_node,nocnsppt,1,0,new_lscale)
+       do n=1,nocnsppt
+          call getnoise(rpattern_ocnsppt(n),noise_e,noise_o)
+          do nn=1,len_trie_ls
+             rpattern_ocnsppt(n)%spec_e(nn,1,1)=noise_e(nn,1)
+             rpattern_ocnsppt(n)%spec_e(nn,2,1)=noise_e(nn,2)
+             nm = rpattern_ocnsppt(n)%idx_e(nn)
+             if (nm .eq. 0) cycle
+             rpattern_ocnsppt(n)%spec_e(nn,1,1) = rpattern_ocnsppt(n)%stdev*rpattern_ocnsppt(n)%spec_e(nn,1,1)*rpattern_ocnsppt(n)%varspectrum(nm)
+             rpattern_ocnsppt(n)%spec_e(nn,2,1) = rpattern_ocnsppt(n)%stdev*rpattern_ocnsppt(n)%spec_e(nn,2,1)*rpattern_ocnsppt(n)%varspectrum(nm)
+          enddo
+          do nn=1,len_trio_ls
+             rpattern_ocnsppt(n)%spec_o(nn,1,1)=noise_o(nn,1)
+             rpattern_ocnsppt(n)%spec_o(nn,2,1)=noise_o(nn,2)
+             nm = rpattern_ocnsppt(n)%idx_o(nn)
+          if (nm .eq. 0) cycle
+             rpattern_ocnsppt(n)%spec_o(nn,1,1) = rpattern_ocnsppt(n)%stdev*rpattern_ocnsppt(n)%spec_o(nn,1,1)*rpattern_ocnsppt(n)%varspectrum(nm)
+            rpattern_ocnsppt(n)%spec_o(nn,2,1) = rpattern_ocnsppt(n)%stdev*rpattern_ocnsppt(n)%spec_o(nn,2,1)*rpattern_ocnsppt(n)%varspectrum(nm)
+          enddo
+          call patterngenerator_advance(rpattern_ocnsppt(n),1,.false.)
        enddo
    endif
    deallocate(noise_e,noise_o)

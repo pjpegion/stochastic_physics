@@ -19,7 +19,7 @@ type(GFS_control_type)  :: Model
 type(GFS_init_type)     :: Init_parm
 integer, parameter      :: nlevs=64
 integer                 :: ntasks,fid
-integer                 :: nthreads,omp_get_num_threads
+integer                 :: nthreads,omp_get_num_threads,omp_get_max_threads
 integer                 :: ncid,xt_dim_id,yt_dim_id,time_dim_id,xt_var_id,yt_var_id,time_var_id
 integer                 :: varid1,varid2,varid3,varid4
 integer                 :: zt_dim_id,zt_var_id
@@ -31,14 +31,14 @@ integer nssppt,nsshum,nsskeb,lon_s,lat_s,ntrunc
 integer skeb_varspect_opt,skeb_npass
 logical sppt_sfclimit
 
-real(kind=kind_dbl_prec) :: skeb_sigtop1,skeb_sigtop2,          &
+real :: skeb_sigtop1,skeb_sigtop2,          &
                    sppt_sigtop1,sppt_sigtop2,shum_sigefold, &
                    skeb_vdof
-real(kind=kind_dbl_prec) fhstoch,skeb_diss_smooth,spptint,shumint,skebint,skebnorm
-real(kind=kind_dbl_prec), dimension(5) :: skeb,skeb_lscale,skeb_tau
-real(kind=kind_dbl_prec), dimension(5) :: sppt,sppt_lscale,sppt_tau
-real(kind=kind_dbl_prec), dimension(5) :: ocnp,ocnp_lscale,ocnp_tau
-real(kind=kind_dbl_prec), dimension(5) :: shum,shum_lscale,shum_tau
+real fhstoch,skeb_diss_smooth,spptint,shumint,skebint,skebnorm
+real, dimension(5) :: skeb,skeb_lscale,skeb_tau
+real, dimension(5) :: sppt,sppt_lscale,sppt_tau
+real, dimension(5) :: ocnp,ocnp_lscale,ocnp_tau
+real, dimension(5) :: shum,shum_lscale,shum_tau
 integer,dimension(5) ::skeb_vfilt
 integer(8),dimension(5) ::iseed_sppt,iseed_shum,iseed_skeb,iseed_ocnp
 logical stochini,sppt_logit,new_lscale
@@ -65,11 +65,11 @@ data bk(:) /1.00000000, 0.99467117, 0.98862660, 0.98174226, 0.97386760, 0.964827
   0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, &
   0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, &
   0.00000000 /
-integer     :: cres,blksz,nblks,ierr,my_id,i,j,k,nx2,ny2,nx,ny,id
+integer     :: cres,blksz,nblks,ierr,my_id,i,j,k,nx,ny,id
 integer,target :: npx,npy
 integer     :: ng,layout(2),io_layout(2),commID,grid_type,ntiles
 integer :: halo_update_type = 1
-real        :: dx,dy,pi,rd,cp
+real        :: pi,rd,cp
 logical,target :: nested
 logical   :: write_this_tile
 integer  :: nargs,ntile_out,nlunit,pe,npes,stackmax=4000000
@@ -92,8 +92,13 @@ type(grid_box_type)           :: grid_box
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale, &
       ocnp,ocnp_lscale,ocnp_tau,iseed_ocnp
 write_this_tile=.false.
+sppt=-999.0
+shum=-999.0
+skeb=-999.0
+allocate(Model%input_nml_file(10))
 ntile_out_str='0'
 nargs=iargc()
+nlunit=33
 if (nargs.EQ.1) then
    call getarg(1,ntile_out_str)
 endif
@@ -107,6 +112,7 @@ Model%do_skeb=.false.
 if (sppt(1).GT.0) Model%do_sppt=.true.
 if (shum(1).GT.0) Model%do_shum=.true.
 if (skeb(1).GT.0) Model%do_skeb=.true.
+print*,'values',sppt(1),shum(1),skeb(1)
 ! define stuff
 ng=3
 pi=3.14159265359
@@ -139,17 +145,18 @@ isc=Atm(1)%bd%isc
 iec=Atm(1)%bd%iec
 jsc=Atm(1)%bd%jsc
 jec=Atm(1)%bd%jec
-nx=Atm(1)%npx-1
-ny=Atm(1)%npy-1
-nx2=iec-isc+1
-ny2=jec-jsc+1
-allocate(workg(nx2,ny2))
-allocate(workg3d(nx2,ny2,nlevs))
-blksz=nx2
-nblks=ny2
+nx=iec-isc+1
+ny=jec-jsc+1
+allocate(workg(nx,ny))
+allocate(workg3d(nx,ny,nlevs))
+blksz=nx
+nblks=ny
 Allocate(Model%blksz(nblks))
 Model%blksz(:)=blksz
 nthreads = omp_get_num_threads()
+print*,'nthreads=',nthreads
+print*,'max_num_threads=',OMP_GET_MAX_THREADS()
+!STOP
 Model%me=my_id
 Model%phour=0
 Model%kdt=1
@@ -166,14 +173,10 @@ Init_parm%bk=bk
 Init_parm%nlunit=21
 
 !define model grid
-Model%nx=nx
-Model%ny=ny
-dx=360.0/Model%nx
-dy=180.0/Model%ny
-allocate(Init_parm%xlon(Model%nx,Model%ny))
-allocate(Init_parm%xlat(Model%nx,Model%ny))
-Init_parm%xlon(:,:)=Atm(1)%gridstruct%agrid(:,:,1)
-Init_parm%xlat(:,:)=Atm(1)%gridstruct%agrid(:,:,2)
+allocate(Init_parm%xlon(nx,ny))
+allocate(Init_parm%xlat(nx,ny))
+Init_parm%xlon(:,:)=Atm(1)%gridstruct%agrid(isc:iec,jsc:jec,1)
+Init_parm%xlat(:,:)=Atm(1)%gridstruct%agrid(isc:iec,jsc:jec,2)
 
 allocate(Grid(nblks))
 do i=1,nblks
@@ -184,15 +187,16 @@ do j=1,nblks
      Grid(j)%xlat(:)=Init_parm%xlat(:,j)
      Grid(j)%xlon(:)=Init_parm%xlon(:,j)
 enddo
-allocate(grid_xt(nx2),grid_yt(ny2))
-do i=1,nx2
+allocate(grid_xt(nx),grid_yt(ny))
+do i=1,nx
   grid_xt(i)=i
 enddo
-do i=1,ny2
+do i=1,ny
   grid_yt(i)=i
 enddo
 !setup GFS_coupling
 allocate(Coupling(nblks))
+print*,'calling init_sto',Model%do_sppt,Model%do_shum,Model%do_skeb
 call init_stochastic_physics(Model, Init_parm, Grid(:))
 call get_outfile(fname)
 write(strid,'(I2.1)') my_id+1
@@ -202,8 +206,8 @@ print*,trim(fname)//'.tile'//trim(adjustl(strid))//'.nc',write_this_tile
 if (write_this_tile) then
 fid=30+my_id
 ierr=nf90_create(trim(fname)//'.tile'//trim(adjustl(strid))//'.nc',cmode=NF90_CLOBBER,ncid=ncid)
-ierr=NF90_DEF_DIM(ncid,"grid_xt",nx2,xt_dim_id)
-ierr=NF90_DEF_DIM(ncid,"grid_yt",ny2,yt_dim_id)
+ierr=NF90_DEF_DIM(ncid,"grid_xt",nx,xt_dim_id)
+ierr=NF90_DEF_DIM(ncid,"grid_yt",ny,yt_dim_id)
 if (Model%do_skeb)ierr=NF90_DEF_DIM(ncid,"p_ref",nlevs,zt_dim_id)
 ierr=NF90_DEF_DIM(ncid,"time",NF90_UNLIMITED,time_dim_id)
   !> - Define the dimension variables.
@@ -272,33 +276,33 @@ do i=1,nblks
    if (Model%do_skeb)allocate(Coupling(i)%skebu_wts(blksz,nlevs))
    if (Model%do_skeb)allocate(Coupling(i)%skebv_wts(blksz,nlevs))
 enddo
-do i=1,10
+do i=1,4
    Model%kdt=i
    ts=i/4.0
    call run_stochastic_physics(Model, Grid, Coupling)
    if (Model%me.EQ.0) print*,'sppt_wts=',i,Coupling(1)%sppt_wts(1,20)
    if (write_this_tile) then
    if (Model%do_sppt)then
-      do j=1,ny2
+      do j=1,ny
          workg(:,j)=Coupling(j)%sppt_wts(:,20)   
       enddo
       ierr=NF90_PUT_VAR(ncid,varid1,workg,(/1,1,i/))
    endif
    if (Model%do_shum)then
-      do j=1,ny2
+      do j=1,ny
          workg(:,j)=Coupling(j)%shum_wts(:,1)
       enddo
       ierr=NF90_PUT_VAR(ncid,varid2,workg,(/1,1,i/))
    endif
    if (Model%do_skeb)then
       do k=1,nlevs
-         do j=1,ny2
+         do j=1,ny
             workg3d(:,j,k)=Coupling(j)%skebu_wts(:,k)
          enddo
       enddo
       ierr=NF90_PUT_VAR(ncid,varid3,workg3d,(/1,1,1,i/))
       do k=1,nlevs
-         do j=1,ny2
+         do j=1,ny
             workg3d(:,j,k)=Coupling(j)%skebv_wts(:,k)
          enddo
       enddo

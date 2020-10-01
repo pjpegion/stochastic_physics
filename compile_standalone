@@ -1,11 +1,10 @@
 #!/bin/sh -x
-SRC_DIR=/scratch2/BMC/gsienkf/Philip.Pegion/coupled-workflow-update/sorc/fv3_coupled.fd/
-#SRC_DIR=/scratch2/BMC/gsienkf/Philip.Pegion/ufs-weather-model/
+SRC_DIR=../
 compile_all=1
-FC=mpif90
-INCS="-I. -I${SRC_DIR}FV3/gfsphysics/ -I${SRC_DIR}/FMS/include -I${SRC_DIR}/FV3/atmos_cubed_sphere -I${SRC_DIR}/FMS/fv3gfs"
+FC=mpiifort
+INCS="-I. -I${SRC_DIR}/FV3/ccpp/include/ -I${SRC_DIR}FV3/gfsphysics/ -I${SRC_DIR}/FMS/include -I${SRC_DIR}/FV3/atmos_cubed_sphere -I${SRC_DIR}/FMS/fv3gfs"
 #OPT_FLAGS="-C -traceback "
-OPT_FLAGS="-g -O0 -check all -check noarg_temp_created -check nopointer -warn -warn noerrors -fp-stack-check -fstack-protector-all -fpe0 -debug -traceback -ftrapuv"
+OPT_FLAGS="-g -O0 -C -fp-stack-check -fstack-protector-all -fpe0 -debug -traceback -ftrapuv"
 #OPT_FLAGS='-traceback -O2 -debug minimal -fp-model source -qoverride-limits -qopt-prefetch=3'
 FLAGS64=$OPT_FLAGS" -qopenmp -real-size 64 -DSTOCHY_UNIT_TEST -c "$INCS
 FLAGS=$OPT_FLAGS" -qopenmp -DSTOCHY_UNIT_TEST -c "$INCS
@@ -21,7 +20,6 @@ if [ $compile_all -eq 1 ];then
    $FC ${FLAGS64} setlats_lag_stochy.f
    $FC ${FLAGS64} glats_stochy.f
    $FC ${FLAGS64} gozrineo_stochy.f
-   $FC ${FLAGS64} num_parthds_stochy.f
    $FC ${FLAGS64} dezouv_stochy.f
    $FC ${FLAGS64} dozeuv_stochy.f
    $FC ${FLAGS64} epslon_stochy.f
@@ -46,4 +44,4 @@ fi
 #$FC ${FLAGS64} get_stochy_pattern.F90
 #$FC ${FLAGS64} stochastic_physics.F90
 ar rv libstochastic_physics.a *.o
-$FC -traceback -real-size 64 -qopenmp -o standalone_stochy standalone_stochy.F90 ${INCS} -I/apps/netcdf/4.7.0/intel/18.0.5.274/include -L. -lstochastic_physics -L${SRC_DIR}/FV3/atmos_cubed_sphere -lfv3core -L${SRC_DIR}/FMS/FMS_INSTALL -lfms -L${SRC_DIR}/FV3/gfsphysics -lgfsphys -L/scratch2/NCEPDEV/nwprod/NCEPLIBS/compilers/intel/18.0.5.274/lib -lsp_v2.0.3_d -L/scratch1/NCEPDEV/nems/emc.nemspara/soft/esmf/8.0.0bs48-intel18.0.5.274-impi2018.0.4-netcdf4.6.1/lib -Wl,-rpath,/scratch1/NCEPDEV/nems/emc.nemspara/soft/esmf/8.0.0bs48-intel18.0.5.274-impi2018.0.4-netcdf4.6.1/lib -lesmf -L/apps/netcdf/4.7.0/intel/18.0.5.274/lib -lnetcdff -lnetcdf
+$FC -C -g -traceback -real-size 64 -o standalone_stochy standalone_stochy.F90 ${INCS} -I/apps/contrib/NCEPLIBS/lib//netcdfp/include -L. -lstochastic_physics /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libfv3cap.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libccppdriver.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libfv3core.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libfv3io.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libipd.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libgfsphys.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/FV3_INSTALL/libfv3cpl.a /work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FMS/FMS_INSTALL/libfms.a -L/work/noaa/gsienkf/ppegion/fv3_coupled_pjp/FV3/ccpp/lib -lccpp -lccppphys /apps/contrib/NCEPLIBS/lib/gfs_post.fd/v8.0.5/intel/libncep_post_4.a /apps/contrib/NCEPLIBS/orion/lib/libnemsio_v2.2.4.a /apps/contrib/NCEPLIBS/orion/lib/libg2_v3.1.1_4.a /apps/contrib/NCEPLIBS/orion/lib/libg2tmpl_v1.6.0.a /apps/contrib/NCEPLIBS/orion/lib/libbacio_v2.0.3_4.a /apps/contrib/NCEPLIBS/orion/lib/libsp_v2.0.3_d.a /apps/contrib/NCEPLIBS/orion/lib/libw3emc_v2.4.0_d.a /apps/contrib/NCEPLIBS/orion/lib/libw3nco_v2.0.7_d.a /apps/contrib/NCEPLIBS/orion/lib/libcrtm_v2.3.0.a /apps/contrib/NCEPLIBS/orion/lib/libpng_v1.2.44/libpng.a /apps/contrib/NCEPLIBS/orion/lib/libjasper_v1.900.2/libjasper.a /apps/contrib/NCEPLIBS/orion/lib/libz_v1.2.6.a -L/apps/contrib/NCEPLIBS/lib/EXTERNAL/LOCAL_EXTERN/ESMF_8.0.0.para/lib -Wl,-rpath,/apps/contrib/NCEPLIBS/lib/EXTERNAL/LOCAL_EXTERN/ESMF_8.0.0.para/lib -lesmf  -cxxlib -lrt -ldl  -lnetcdff -lnetcdf -L/apps/contrib/NCEPLIBS/l.0110.2020/lib/netcdfp/lib  -lhdf5 -lhdf5_hl -lhdf5 -lz  -qopenmp  -L/apps/contrib/NCEPLIBS/lib//netcdfp/lib -lnetcdff -lnetcdf

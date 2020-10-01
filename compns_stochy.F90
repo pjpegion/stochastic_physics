@@ -57,10 +57,11 @@ module compns_stochy_mod
       skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth, &
       skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,&
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,&
-      ocnp,ocnp_lscale,ocnp_tau,iseed_ocnp
+      epbl,epbl_lscale,epbl_tau,iseed_epbl,                                    &
+      ocnsppt,ocnsppt_lscale,ocnsppt_tau,iseed_ocnsppt
       namelist /nam_sfcperts/nsfcpert,pertz0,pertshc,pertzt,pertlai, & ! mg, sfcperts
       pertvegf,pertalb,iseed_sfc,sfc_tau,sfc_lscale,sppt_land
-
+      print*,'in compns',sz_nml
       rerth  =6.3712e+6      ! radius of earth (m)
       tol=0.01  ! tolerance for calculations
 !     spectral resolution defintion
@@ -304,7 +305,8 @@ module compns_stochy_mod
       skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth, &
       skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,&
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale, &
-      ocnp,ocnp_lscale,ocnp_tau,iseed_ocnp
+      epbl,epbl_lscale,epbl_tau,iseed_epbl,                                    &
+      ocnsppt,ocnsppt_lscale,ocnsppt_tau,iseed_ocnsppt
 
       namelist /nam_sfcperts/nsfcpert,pertz0,pertshc,pertzt,pertlai, & ! mg, sfcperts
       pertvegf,pertalb,iseed_sfc,sfc_tau,sfc_lscale
@@ -319,32 +321,47 @@ module compns_stochy_mod
       lat_s=-999
       ! can specify up to 5 values for the stochastic physics parameters
       ! (each is an array of length 5)
-      ocnp             = -999.  ! stochastic physics tendency amplitude
+      epbl             = -999.  ! stochastic physics tendency amplitude
+      ocnsppt          = -999.  ! stochastic physics tendency amplitude
 ! logicals
-      do_ocnp = .false.
+      do_epbl = .false.
+      do_ocnsppt = .false.
       new_lscale = .false.
-      ocnpint          = 0
-      ocnp_tau         = -999.  ! time scales
-      ocnp_lscale      = -999.  ! length scales
-      iseed_ocnp       = 0      ! random seeds (if 0 use system clock)
+      epblint          = 0
+      ocnspptint       = 0
+      epbl_tau         = -999.  ! time scales
+      ocnsppt_tau      = -999.  ! time scales
+      epbl_lscale      = -999.  ! length scales
+      ocnsppt_lscale   = -999.  ! length scales
+      iseed_epbl       = 0      ! random seeds (if 0 use system clock)
+      iseed_ocnsppt    = 0      ! random seeds (if 0 use system clock)
       rewind (nlunit)
       open (unit=nlunit, file='input.nml', READONLY, status='OLD', iostat=ios)
       read(nlunit,nam_stochy)
 
       if (mpp_pe()==mpp_root_pe()) then
       print *,' in compns_stochy_ocn'
-      print*,'ocnp=',ocnp
       endif
 
 ! PJP stochastic physics additions
-      IF (ocnp(1) > 0 ) THEN
-        do_ocnp=.true.
+      IF (epbl(1) > 0 ) THEN
+        do_epbl=.true.
       ENDIF
-!    compute frequencty to estimate dissipation timescale
-      IF (ocnpint == 0.) ocnpint=deltim
-      nsocnp=nint(ocnpint/deltim)                              ! ocnpint in seconds
-      IF(nsocnp<=0 .or. abs(nsocnp-ocnpint/deltim)>tol) THEN
-         WRITE(0,*) "SKEB interval is invalid",ocnpint
+      IF (ocnsppt(1) > 0 ) THEN
+        do_ocnsppt=.true.
+      ENDIF
+!    compute frequencty to update random pattern
+      IF (epblint == 0.) epblint=deltim
+      nsepbl=nint(epblint/deltim)                              ! epblint in seconds
+      IF(nsepbl<=0 .or. abs(nsepbl-epblint/deltim)>tol) THEN
+         WRITE(0,*) "ePBL interval is invalid",epblint
+        iret=9
+        return
+      ENDIF
+      IF (ocnspptint == 0.) ocnspptint=deltim
+      nsocnsppt=nint(ocnspptint/deltim)                         ! ocnspptint in seconds
+      IF(nsocnsppt<=0 .or. abs(nsocnsppt-ocnspptint/deltim)>tol) THEN
+         WRITE(0,*) "ePBL interval is invalid",ocnspptint
         iret=9
         return
       ENDIF
@@ -354,7 +371,8 @@ module compns_stochy_mod
         circ=2*3.1415928*rerth ! start with lengthscale that is circumference of the earth
         l_min=circ
         do k=1,5
-           if (ocnp(k).GT.0) l_min=min(ocnp_lscale(k),l_min)
+           if (epbl(k).GT.0) l_min=min(epbl_lscale(k),l_min)
+           if (ocnsppt(k).GT.0) l_min=min(ocnsppt_lscale(k),l_min)
        enddo
        !ntrunc=1.5*circ/l_min
        ntrunc=circ/l_min
@@ -379,7 +397,8 @@ module compns_stochy_mod
 !
       if (mpp_pe()==mpp_root_pe()) then
          print *, 'ocean stochastic physics'
-         print *, ' do_ocnp : ', do_ocnp
+         print *, ' do_epbl : ', do_epbl
+         print *, ' do_ocnsppt : ', do_ocnsppt
       endif
       iret = 0
 !
