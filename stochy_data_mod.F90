@@ -21,13 +21,15 @@ module stochy_data_mod
  public :: init_stochdata,init_stochdata_ocn
 
  type(random_pattern), public, save, allocatable, dimension(:) :: &
-       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt
+       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt,&
+       rpattern_zorl
  integer, public :: nepbl=0
  integer, public :: nocnsppt=0
  integer, public :: nsppt=0
  integer, public :: nshum=0
  integer, public :: nskeb=0
  integer, public :: nlndp=0 ! this is the number of different patterns (determined by the tau/lscale input) 
+ integer, public :: nzorl=0
  real*8, public,allocatable :: sl(:)
 
  real(kind=kind_dbl_prec),public, allocatable :: vfact_sppt(:),vfact_shum(:),vfact_skeb(:)
@@ -74,7 +76,7 @@ module stochy_data_mod
    call compns_stochy (mype,size(input_nml_file,1),input_nml_file(:),fn_nml,nlunit,delt,iret)
   
    if (iret/=0) return  ! need to make sure that non-zero irets are being trapped.
-   if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (lndp_type==0) ) return
+   if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (lndp_type==0) .AND. (.NOT. pert_zorl) ) return
    call initialize_spectral(gis_stochy)
    
    allocate(noise_e(len_trie_ls,2),noise_o(len_trio_ls,2))
@@ -115,11 +117,20 @@ module stochy_data_mod
    if (n_var_lndp>0) nlndp=1
    if (is_rootpe())  print *,' nlndp   = ', nlndp
 
+   do n=1,size(zorl)
+     if (zorl(n) > 0) then
+        nzorl=nzorl+1
+     else
+        exit
+     endif
+   enddo
+
    if (nsppt > 0) allocate(rpattern_sppt(nsppt))
    if (nshum > 0) allocate(rpattern_shum(nshum))
    if (nskeb > 0) allocate(rpattern_skeb(nskeb))
    ! mg, sfc perts
    if (nlndp > 0) allocate(rpattern_sfc(nlndp))
+   if (nzorl > 0) allocate(rpattern_zorl(nzorl))
 
 !  if stochini is true, then read in pattern from a file
    if (is_rootpe()) then
@@ -237,6 +248,55 @@ module stochy_data_mod
                 if (nm .eq. 0) cycle
                 rpattern_shum(n)%spec_o(nn,1,1) = rpattern_shum(n)%stdev*rpattern_shum(n)%spec_o(nn,1,1)*rpattern_shum(n)%varspectrum(nm)
                 rpattern_shum(n)%spec_o(nn,2,1) = rpattern_shum(n)%stdev*rpattern_shum(n)%spec_o(nn,2,1)*rpattern_shum(n)%varspectrum(nm)
+             enddo
+          endif
+       enddo
+   endif
+   if (nzorl > 0) then
+      if (is_rootpe()) then
+         print *, 'Initialize random pattern for ZORL'
+         if (stochini) then
+            ierr=NF90_INQ_VARID(stochlun,"zorl_seed", varid1)
+            if (ierr .NE. 0) then
+               write(0,*) 'error inquring ZORL seed'
+               iret = ierr
+               return
+            end if
+            ierr=NF90_INQ_VARID(stochlun,"zorl_spec", varid2)
+            if (ierr .NE. 0) then
+               write(0,*) 'error inquring ZORL spec'
+               iret = ierr
+               return
+            end if
+         endif
+      endif
+      call patterngenerator_init(zorl_lscale(1:nzorl),zorlint,zorl_tau(1:nzorl),zorl(1:nzorl),iseed_zorl,rpattern_zorl, &
+          lonf,latg,jcap,gis_stochy%ls_node,nzorl,1,0,new_lscale)
+      do n=1,nzorl
+         if (stochini) then
+            call read_pattern(rpattern_zorl(n),jcapin,stochlun,1,n,varid1,varid2,.false.,ierr)
+            if (ierr .NE. 0) then
+               write(0,*) 'error reading ZORL pattern'
+               iret = ierr
+               return
+            end if
+          else
+             call getnoise(rpattern_zorl(n),noise_e,noise_o)
+             do nn=1,len_trie_ls
+                rpattern_zorl(n)%spec_e(nn,1,1)=noise_e(nn,1)
+                rpattern_zorl(n)%spec_e(nn,2,1)=noise_e(nn,2)
+                nm = rpattern_zorl(n)%idx_e(nn)
+                if (nm .eq. 0) cycle
+                rpattern_zorl(n)%spec_e(nn,1,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_e(nn,1,1)*rpattern_zorl(n)%varspectrum(nm)
+                rpattern_zorl(n)%spec_e(nn,2,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_e(nn,2,1)*rpattern_zorl(n)%varspectrum(nm)
+             enddo
+             do nn=1,len_trio_ls
+                rpattern_zorl(n)%spec_o(nn,1,1)=noise_o(nn,1)
+                rpattern_zorl(n)%spec_o(nn,2,1)=noise_o(nn,2)
+                nm = rpattern_zorl(n)%idx_o(nn)
+                if (nm .eq. 0) cycle
+                rpattern_zorl(n)%spec_o(nn,1,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_o(nn,1,1)*rpattern_zorl(n)%varspectrum(nm)
+                rpattern_zorl(n)%spec_o(nn,2,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_o(nn,2,1)*rpattern_zorl(n)%varspectrum(nm)
              enddo
           endif
        enddo
