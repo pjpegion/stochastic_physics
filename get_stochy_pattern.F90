@@ -7,10 +7,10 @@ module get_stochy_pattern_mod
                                  four_to_grid, spec_to_four, dezouv_stochy,dozeuv_stochy
  use stochy_namelist_def, only : n_var_lndp, ntrunc, stochini
  use stochy_data_mod, only : gg_lats, gg_lons, inttyp, nskeb, nshum, nsppt, &
-                             nocnsppt,nepbl,nlndp, nzorl,                   &
+                             nocnsppt,nepbl,nlndp, nzorl,npbl,              &
                              rnlat, rpattern_sfc, rpattern_skeb,            &
                              rpattern_shum, rpattern_sppt, rpattern_ocnsppt,&
-                             rpattern_zorl,                                 &
+                             rpattern_zorl, rpattern_pbl1, rpattern_pbl2,   &
                              rpattern_epbl1, rpattern_epbl2, skebu_save,    &
                              skebv_save, skeb_vwts, skeb_vpts, wlon
  use stochy_patterngenerator_mod, only: random_pattern, ndimspec,           &
@@ -323,18 +323,19 @@ subroutine scalarspect_to_gaugrid(rpattern,gis_stochy,datag,n)
 subroutine write_stoch_restart_atm(sfile)
 !\callgraph
     use netcdf
-    use stochy_namelist_def, only : do_sppt,do_shum,do_skeb,lndp_type,pert_zorl
+    use stochy_namelist_def, only : do_sppt,do_shum,do_skeb,lndp_type,pert_zorl,pert_pbl
     implicit none
     character(len=*) :: sfile
     integer :: stochlun,k,n,isize,ierr
     integer :: ncid,varid1a,varid1b,varid2a,varid2b,varid3a,varid3b,varid4a,varid4b,varid5a,varid5b
+    integer :: varid6a,varid6b,varid7a,varid7b
     integer :: seed_dim_id,spec_dim_id,zt_dim_id,ztsfc_dim_id,np_dim_id,npsfc_dim_id
     include 'netcdf.inc'
 
-    if ( ( .NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb) .AND. (lndp_type==0 ) .AND. (.NOT. pert_zorl) ) return
+    if ( ( .NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb) .AND. (lndp_type==0 ) .AND. (.NOT. pert_zorl) .AND. (.NOT. pert_pbl) ) return
     stochlun=99
     if (is_rootpe()) then
-       if (nsppt > 0 .OR. nshum > 0 .OR. nskeb > 0 .OR. nlndp>0 .OR. nzorl > 0 ) then
+       if (nsppt > 0 .OR. nshum > 0 .OR. nskeb > 0 .OR. nlndp>0 .OR. nzorl > 0 .OR. npbl >0 ) then
           ierr=nf90_create(trim(sfile),cmode=NF90_CLOBBER,ncid=ncid)
           ierr=NF90_PUT_ATT(ncid,NF_GLOBAL,"ntrunc",ntrunc)
           call random_seed(size=isize) ! get seed size
@@ -382,6 +383,16 @@ subroutine write_stoch_restart_atm(sfile)
              ierr=NF90_DEF_VAR(ncid,"zorl_spec",NF90_DOUBLE,(/spec_dim_id, np_dim_id/), varid5b)
              ierr=NF90_PUT_ATT(ncid,varid5b,"long_name","spectral cofficients ZORL")
           endif
+          if (pert_pbl) then
+             ierr=NF90_DEF_VAR(ncid,"pbl1_seed",NF90_DOUBLE,(/seed_dim_id, np_dim_id/), varid6a)
+             ierr=NF90_PUT_ATT(ncid,varid6a,"long_name","random number seed for PBL1")
+             ierr=NF90_DEF_VAR(ncid,"pbl1_spec",NF90_DOUBLE,(/spec_dim_id, np_dim_id/), varid6b)
+             ierr=NF90_PUT_ATT(ncid,varid6b,"long_name","spectral cofficients PBL1")
+             ierr=NF90_DEF_VAR(ncid,"pbl2_seed",NF90_DOUBLE,(/seed_dim_id, np_dim_id/), varid7a)
+             ierr=NF90_PUT_ATT(ncid,varid7a,"long_name","random number seed for PBL2")
+             ierr=NF90_DEF_VAR(ncid,"pbl2_spec",NF90_DOUBLE,(/spec_dim_id, np_dim_id/), varid7b)
+             ierr=NF90_PUT_ATT(ncid,varid7b,"long_name","spectral cofficients PBL2")
+          endif
           ierr=NF90_ENDDEF(ncid)
           if (ierr .NE. 0) then
              write(0,*) 'error creating stochastic restart file'
@@ -416,6 +427,12 @@ subroutine write_stoch_restart_atm(sfile)
     if (nzorl > 0) then
        do n=1,nzorl
           call write_pattern(rpattern_zorl(n),ncid,1,n,varid5a,varid5b,.false.,ierr)
+       enddo
+    endif
+    if (npbl > 0) then
+       do n=1,npbl
+          call write_pattern(rpattern_pbl1(n),ncid,1,n,varid6a,varid6b,.false.,ierr)
+          call write_pattern(rpattern_pbl2(n),ncid,1,n,varid7a,varid7b,.false.,ierr)
        enddo
     endif
     if (is_rootpe() ) then

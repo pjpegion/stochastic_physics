@@ -63,6 +63,7 @@ module compns_stochy_mod
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,     &
       epbl,epbl_lscale,epbl_tau,iseed_epbl,                                         &
       zorl,zorl_lscale,zorl_tau,iseed_zorl, zorlint,                                &
+      pbl,pbl_lscale,pbl_tau,iseed_pbl, pblint,                                     &
       ocnsppt,ocnsppt_lscale,ocnsppt_tau,iseed_ocnsppt
       
       namelist /nam_sfcperts/lndp_type,lndp_var_list, lndp_prt_list, iseed_lndp, & 
@@ -80,6 +81,7 @@ module compns_stochy_mod
       shum             = -999.  ! stochastic boundary layer spf hum amp
       skeb             = -999.  ! stochastic KE backscatter amplitude
       zorl             = -999.  ! ampltiude for roughness length perturbations
+      pbl              = -999.  ! ampltiude for roughness length perturbations
       lndp_var_list  = 'XXX'
       lndp_prt_list  = -999.
 ! logicals
@@ -89,6 +91,7 @@ module compns_stochy_mod
       do_shum = .false.
       do_skeb = .false.
       pert_zorl = .false.
+      pert_pbl  = .false.
 ! C. Draper July 2020.
 ! input land pert variables: 
 ! LNDP_TYPE = 0
@@ -111,20 +114,24 @@ module compns_stochy_mod
       spptint          = 0
       shumint          = 0
       zorlint          = 0
+      pblint           = 0
       skeb_npass       = 11  ! number of passes of smoother for dissipation estiamte
       sppt_tau         = -999.  ! time scales
       shum_tau         = -999.
       zorl_tau         = -999.
+      pbl_tau          = -999.
       skeb_tau         = -999.
       skeb_vdof        = 5 ! proxy for vertical correlation, 5 is close to 40 passes of the 1-2-1 filter in the GFS
       skebnorm         = 0  ! 0 - random pattern is stream function, 1- pattern is kenorm, 2- pattern is vorticity
       sppt_lscale      = -999.  ! length scales
       shum_lscale      = -999.
       zorl_lscale      = -999.
+      pbl_lscale       = -999.
       skeb_lscale      = -999.
       iseed_sppt       = 0      ! random seeds (if 0 use system clock)
       iseed_shum       = 0
       iseed_zorl       = 0
+      iseed_pbl        = 0
       iseed_skeb       = 0
 ! parameters to control vertical tapering of stochastic physics with
 ! height
@@ -213,6 +220,11 @@ module compns_stochy_mod
       IF (zorl(1) > 0 ) THEN
         pert_zorl=.true.
       ENDIF
+      IF (pblint == 0.) pblint=deltim
+      nspbl=nint(pblint/deltim)                              ! pblint in seconds
+      IF (pbl(1) > 0 ) THEN
+        pert_pbl=.true.
+      ENDIF
 !calculate ntrunc if not supplied
      if (ntrunc .LT. 1) then  
         if (me==0) print*,'ntrunc not supplied, calculating'
@@ -223,6 +235,7 @@ module compns_stochy_mod
            if (shum(k).GT.0) l_min=min(shum_lscale(k),l_min)
            if (skeb(k).GT.0) l_min=min(skeb_lscale(k),l_min)
            if (zorl(k).GT.0) l_min=min(zorl_lscale(k),l_min)
+           if (pbl(k).GT.0) l_min=min(pbl_lscale(k),l_min)
        enddo
        if (lndp_type.GT.0) l_min=min(lndp_lscale(1),l_min)
        !ntrunc=1.5*circ/l_min
@@ -323,6 +336,7 @@ module compns_stochy_mod
          print *, ' lndp_type : ', lndp_type
          if (lndp_type .NE. 0) print *, ' n_var_lndp : ', n_var_lndp
          print *, ' pert_zorl : ', pert_zorl
+         print *, ' pert_pbl : ', pert_pbl
       endif
       iret = 0
 !
