@@ -7,11 +7,11 @@ module get_stochy_pattern_mod
                                  four_to_grid, spec_to_four, dezouv_stochy,dozeuv_stochy
  use stochy_namelist_def, only : n_var_lndp, ntrunc, stochini,n_var_spp
  use stochy_data_mod, only : gg_lats, gg_lons, inttyp, nskeb, nshum, nsppt, &
-                             nocnsppt,nepbl,nlndp,                          &
+                             nocnsppt,nocnskeb,nepbl,nlndp,                 &
                              rnlat, rpattern_sfc, rpattern_skeb,            &
                              rpattern_shum, rpattern_sppt, rpattern_ocnsppt,&
                              rpattern_epbl1, rpattern_epbl2, skebu_save,    &
-                             nspp,rpattern_spp,                             &
+                             nspp,rpattern_spp, rpattern_ocnskeb,           &
                              skebv_save, skeb_vwts, skeb_vpts, wlon
  use stochy_patterngenerator_mod, only: random_pattern, ndimspec,           &
                                         patterngenerator_advance
@@ -495,14 +495,14 @@ subroutine write_stoch_restart_atm(sfile)
 subroutine write_stoch_restart_ocn(sfile)
 !\callgraph
     use netcdf
-    use stochy_namelist_def, only : do_ocnsppt,pert_epbl
+    use stochy_namelist_def, only : do_ocnsppt,pert_epbl,do_ocnskeb
     implicit none
     character(len=*) :: sfile
     integer :: stochlun,k,n,isize,ierr
-    integer :: ncid,varid1a,varid1b,varid2a,varid2b,varid3a,varid3b
+    integer :: ncid,varid1a,varid1b,varid2a,varid2b,varid3a,varid3b,varid4a,varid4b
     integer :: seed_dim_id,spec_dim_id,np_dim_id
     include 'netcdf.inc'
-    if ( ( .NOT. do_ocnsppt) .AND. (.NOT. pert_epbl) ) return
+    if ( ( .NOT. do_ocnsppt) .AND. (.NOT. pert_epbl) .AND. ( .NOT. do_ocnskeb) ) return
     stochlun=99
     if (is_rootpe()) then
        ierr=nf90_create(trim(sfile),cmode=NF90_CLOBBER,ncid=ncid)
@@ -530,6 +530,12 @@ subroutine write_stoch_restart_ocn(sfile)
           ierr=NF90_DEF_VAR(ncid,"epbl2_spec",NF90_DOUBLE,(/spec_dim_id, np_dim_id/), varid3b)
           ierr=NF90_PUT_ATT(ncid,varid3b,"long_name","spectral cofficients EPBL2")
        endif
+       if (do_ocnskeb) then
+          ierr=NF90_DEF_VAR(ncid,"ocnskeb_seed",NF90_DOUBLE,(/seed_dim_id, np_dim_id/), varid4a)
+          ierr=NF90_PUT_ATT(ncid,varid4a,"long_name","random number seed for SPPT")
+          ierr=NF90_DEF_VAR(ncid,"ocnskeb_spec",NF90_DOUBLE,(/spec_dim_id, np_dim_id/), varid4b)
+          ierr=NF90_PUT_ATT(ncid,varid4b,"long_name","spectral cofficients SPPT")
+       endif
        ierr=NF90_ENDDEF(ncid)
        if (ierr .NE. 0) then
           write(0,*) 'error creating stochastic restart file'
@@ -545,6 +551,11 @@ subroutine write_stoch_restart_ocn(sfile)
        do n=1,nepbl
           call write_pattern(rpattern_epbl1(n),ncid,1,n,varid2a,varid2b,.false.,ierr)
           call write_pattern(rpattern_epbl2(n),ncid,1,n,varid3a,varid3b,.false.,ierr)
+       enddo
+    endif
+    if (nocnskeb > 0) then
+       do n=1,nocnskeb
+          call write_pattern(rpattern_ocnskeb(n),ncid,1,n,varid4a,varid4b,.false.,ierr)
        enddo
     endif
     if (is_rootpe() ) then

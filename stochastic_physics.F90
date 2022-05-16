@@ -259,7 +259,7 @@ end subroutine init_stochastic_physics
 
 !!!!!!!!!!!!!!!!!!!!
 subroutine init_stochastic_physics_ocn(delt,geoLonT,geoLatT,nx,ny,nz,pert_epbl_in,do_sppt_in, &
-                                       mpiroot, mpicomm, iret)
+                                       do_skeb_in, mpiroot, mpicomm, iret)
 use stochy_data_mod, only : init_stochdata_ocn,gg_lats,gg_lons,&
                             rad2deg,INTTYP,wlon,rnlat,gis_stochy_ocn
 use spectral_transforms , only : latg,lonf,colrad_a
@@ -272,7 +272,7 @@ implicit none
 real,intent(in)  :: delt
 integer,intent(in) :: nx,ny,nz
 real,intent(in) :: geoLonT(nx,ny),geoLatT(nx,ny)
-logical,intent(in) :: pert_epbl_in,do_sppt_in
+logical,intent(in) :: pert_epbl_in,do_sppt_in,do_skeb_in
 integer,intent(in)    :: mpiroot, mpicomm
 integer, intent(out) :: iret
 real(kind=kind_dbl_prec), parameter     :: con_pi =4.0d0*atan(1.0d0)
@@ -303,6 +303,11 @@ if (do_sppt_in.neqv.do_ocnsppt) then
 else if (pert_epbl_in.neqv.pert_epbl) then
    write(0,'(*(a))') 'Logic error in stochastic_physics_ocn_init: incompatible', &
                    & ' namelist settings pert_epbl and epbl'
+   iret = 20 
+   return
+else if (do_skeb_in.neqv.do_ocnskeb) then
+   write(0,'(*(a))') 'Logic error in stochastic_physics_ocn_init: incompatible', &
+                   & ' namelist settings do_skeb and skeb'
    iret = 20 
    return
 end if
@@ -466,18 +471,18 @@ endif
 
 end subroutine run_stochastic_physics
 
-subroutine run_stochastic_physics_ocn(sppt_wts,t_rp1,t_rp2)
+subroutine run_stochastic_physics_ocn(sppt_wts,skeb_wts,t_rp1,t_rp2)
 !use MOM_forcing_type, only : mech_forcing
 !use MOM_grid, only : ocean_grid_type   
 use stochy_internal_state_mod
-use stochy_data_mod, only : nepbl,nocnsppt,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt, gis_stochy_ocn
+use stochy_data_mod, only : nepbl,nocnsppt,nocnskeb,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt, rpattern_ocnskeb, gis_stochy_ocn
 use get_stochy_pattern_mod,only : get_random_pattern_scalar
 use stochy_namelist_def
 implicit none
 !type(ocean_grid_type),       intent(in) :: G
 real, intent(inout) :: sppt_wts(:,:),t_rp1(:,:),t_rp2(:,:)
 real, allocatable :: tmp_wts(:,:)
-if (pert_epbl .OR. do_ocnsppt) then
+if (pert_epbl .OR. do_ocnsppt .OR. do_ocnskeb ) then
    allocate(tmp_wts(gis_stochy_ocn%nx,gis_stochy_ocn%ny))
    if (pert_epbl) then
       call get_random_pattern_scalar(rpattern_epbl1,nepbl,gis_stochy_ocn,tmp_wts)
@@ -494,9 +499,15 @@ if (pert_epbl .OR. do_ocnsppt) then
    else
       sppt_wts=1.0
    endif
+   if (do_ocnskeb) then
+      call get_random_pattern_scalar(rpattern_ocnskeb,nocnskeb,gis_stochy_ocn,skeb_wts)
+   else
+      skeb_wts=1.0
+   endif
    deallocate(tmp_wts)
 else
    sppt_wts(:,:)=1.0
+   skeb_wts(:,:)=1.0
    t_rp1(:,:)=1.0
    t_rp2(:,:)=1.0
 endif
