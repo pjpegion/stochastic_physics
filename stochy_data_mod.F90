@@ -21,8 +21,8 @@ module stochy_data_mod
  public :: init_stochdata,init_stochdata_ocn
 
  type(random_pattern), public, save, allocatable, dimension(:) :: &
-       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt,rpattern_spp,
-       rpattern_ocnskeb
+       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl1,rpattern_epbl2,&
+       rpattern_ocnsppt,rpattern_spp,rpattern_ocnskeb
  integer, public :: nepbl=0
  integer, public :: nocnsppt=0
  integer, public :: nocnskeb=0
@@ -697,6 +697,7 @@ module stochy_data_mod
             call patterngenerator_advance(rpattern_ocnsppt(n),1,.false.)
          endif
       enddo
+   endif
 
    if (nocnskeb > 0) then
       if (is_rootpe()) then

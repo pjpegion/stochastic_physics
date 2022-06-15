@@ -178,6 +178,7 @@ module compns_stochy_mod
       rewind (nlunit)
       open (unit=nlunit, file=fn_nml, action='READ', status='OLD', iostat=ios)
       read(nlunit,nam_sppperts)
+      close(nlunit)
 #endif
 
       if (me == 0) then
@@ -485,6 +486,7 @@ module compns_stochy_mod
       rewind (nlunit)
       open (unit=nlunit, file='input.nml', action='READ', status='OLD', iostat=ios)
       read(nlunit,nam_stochy)
+      close(nlunit)
 
       if (mpp_pe()==mpp_root_pe()) then
       print *,' in compns_stochy_ocn'

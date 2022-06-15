@@ -502,6 +502,7 @@ subroutine write_stoch_restart_ocn(sfile)
     integer :: ncid,varid1a,varid1b,varid2a,varid2b,varid3a,varid3b,varid4a,varid4b
     integer :: seed_dim_id,spec_dim_id,np_dim_id
     include 'netcdf.inc'
+    print*,'in write restart',do_ocnsppt,pert_epbl,do_ocnskeb
     if ( ( .NOT. do_ocnsppt) .AND. (.NOT. pert_epbl) .AND. ( .NOT. do_ocnskeb) ) return
     stochlun=99
     if (is_rootpe()) then

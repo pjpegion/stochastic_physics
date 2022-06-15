@@ -263,7 +263,6 @@ subroutine init_stochastic_physics_ocn(delt,geoLonT,geoLatT,nx,ny,nz,pert_epbl_i
 use stochy_data_mod, only : init_stochdata_ocn,gg_lats,gg_lons,&
                             rad2deg,INTTYP,wlon,rnlat,gis_stochy_ocn
 use spectral_transforms , only : latg,lonf,colrad_a
-!use MOM_grid, only : ocean_grid_type   
 use stochy_namelist_def
 use mersenne_twister, only: random_gauss
 use mpi_wrapper, only : mpi_wrapper_initialize,mype,npes,is_rootpe
@@ -472,15 +471,12 @@ endif
 end subroutine run_stochastic_physics
 
 subroutine run_stochastic_physics_ocn(sppt_wts,skeb_wts,t_rp1,t_rp2)
-!use MOM_forcing_type, only : mech_forcing
-!use MOM_grid, only : ocean_grid_type   
 use stochy_internal_state_mod
 use stochy_data_mod, only : nepbl,nocnsppt,nocnskeb,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt, rpattern_ocnskeb, gis_stochy_ocn
 use get_stochy_pattern_mod,only : get_random_pattern_scalar
 use stochy_namelist_def
 implicit none
-!type(ocean_grid_type),       intent(in) :: G
-real, intent(inout) :: sppt_wts(:,:),t_rp1(:,:),t_rp2(:,:)
+real, intent(inout) :: sppt_wts(:,:),t_rp1(:,:),t_rp2(:,:),skeb_wts(:,:)
 real, allocatable :: tmp_wts(:,:)
 if (pert_epbl .OR. do_ocnsppt .OR. do_ocnskeb ) then
    allocate(tmp_wts(gis_stochy_ocn%nx,gis_stochy_ocn%ny))
@@ -489,27 +485,28 @@ if (pert_epbl .OR. do_ocnsppt .OR. do_ocnskeb ) then
       t_rp1(:,:)=2.0/(1+exp(-1*tmp_wts))
       call get_random_pattern_scalar(rpattern_epbl2,nepbl,gis_stochy_ocn,tmp_wts)
       t_rp2(:,:)=2.0/(1+exp(-1*tmp_wts))
-   else
-      t_rp1(:,:)=1.0
-      t_rp2(:,:)=1.0
+!   else
+!      t_rp1(:,:)=1.0
+!      t_rp2(:,:)=1.0
    endif
    if (do_ocnsppt) then
       call get_random_pattern_scalar(rpattern_ocnsppt,nocnsppt,gis_stochy_ocn,tmp_wts)
       sppt_wts=2.0/(1+exp(-1*tmp_wts))
-   else
-      sppt_wts=1.0
+!   else
+!      sppt_wts=1.0
    endif
    if (do_ocnskeb) then
       call get_random_pattern_scalar(rpattern_ocnskeb,nocnskeb,gis_stochy_ocn,skeb_wts)
-   else
-      skeb_wts=1.0
+!   else
+!      skeb_wts=1.0
    endif
+   print*,'after get_random_pattern_scalar',skeb_wts(1,1)
    deallocate(tmp_wts)
-else
-   sppt_wts(:,:)=1.0
-   skeb_wts(:,:)=1.0
-   t_rp1(:,:)=1.0
-   t_rp2(:,:)=1.0
+!else
+!   sppt_wts(:,:)=1.0
+!   skeb_wts(:,:)=1.0
+!   t_rp1(:,:)=1.0
+!   t_rp2(:,:)=1.0
 endif
 
 end subroutine run_stochastic_physics_ocn
