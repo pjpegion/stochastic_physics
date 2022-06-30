@@ -56,18 +56,22 @@ module compns_stochy_mod
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !
       namelist /nam_stochy/ntrunc,lon_s,lat_s,sppt,sppt_tau,sppt_lscale,sppt_logit, &
-      iseed_shum,iseed_sppt,shum,shum_tau,&
-      shum_lscale,stochini,skeb_varspect_opt,sppt_sfclimit, &
-      skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth, &
-      skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,&
-      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale, &
-      epbl,epbl_lscale,epbl_tau,iseed_epbl,                                    &
+      iseed_shum,iseed_sppt,shum,shum_tau,                                          &
+      shum_lscale,stochini,skeb_varspect_opt,sppt_sfclimit,                         &
+      skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth,   &
+      skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,                 &
+      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,     &
+      epbl,epbl_lscale,epbl_tau,iseed_epbl,                                         &
+      zorl,zorl_lscale,zorl_tau,iseed_zorl, zorlint,                                &
+      pbl,pbl_lscale,pbl_tau,iseed_pbl, pblint,                                     &
       ocnsppt,ocnsppt_lscale,ocnsppt_tau,iseed_ocnsppt
+
       namelist /nam_sfcperts/lndp_type,lndp_model_type, lndp_var_list, lndp_prt_list, & 
                             iseed_lndp, lndp_tau,lndp_lscale 
 !     For SPP physics parameterization perterbations
       namelist /nam_sppperts/spp_var_list, spp_prt_list, iseed_spp, &
       spp_tau,spp_lscale,spp_sigtop1, spp_sigtop2,spp_stddev_cutoff
+
 
       rerth  =6.3712e+6      ! radius of earth (m)
       tol=0.01  ! tolerance for calculations
@@ -80,6 +84,8 @@ module compns_stochy_mod
       sppt             = -999.  ! stochastic physics tendency amplitude
       shum             = -999.  ! stochastic boundary layer spf hum amp
       skeb             = -999.  ! stochastic KE backscatter amplitude
+      zorl             = -999.  ! ampltiude for roughness length perturbations
+      pbl              = -999.  ! ampltiude for roughness length perturbations
       lndp_var_list  = 'XXX'
       lndp_prt_list  = -999.
       spp_var_list  = 'XXX'
@@ -91,6 +97,8 @@ module compns_stochy_mod
       do_shum = .false.
       do_skeb = .false.
       do_spp  = .false.
+      pert_zorl = .false.
+      pert_pbl  = .false.
 ! C. Draper July 2020.
 ! input land pert variables: 
 ! LNDP_TYPE = 0
@@ -121,17 +129,25 @@ module compns_stochy_mod
       skebint          = 0
       spptint          = 0
       shumint          = 0
+      zorlint          = 0
+      pblint           = 0
       skeb_npass       = 11  ! number of passes of smoother for dissipation estiamte
       sppt_tau         = -999.  ! time scales
       shum_tau         = -999.
+      zorl_tau         = -999.
+      pbl_tau          = -999.
       skeb_tau         = -999.
       skeb_vdof        = 5 ! proxy for vertical correlation, 5 is close to 40 passes of the 1-2-1 filter in the GFS
       skebnorm         = 0  ! 0 - random pattern is stream function, 1- pattern is kenorm, 2- pattern is vorticity
       sppt_lscale      = -999.  ! length scales
       shum_lscale      = -999.
+      zorl_lscale      = -999.
+      pbl_lscale       = -999.
       skeb_lscale      = -999.
       iseed_sppt       = 0      ! random seeds (if 0 use system clock)
       iseed_shum       = 0
+      iseed_zorl       = 0
+      iseed_pbl        = 0
       iseed_skeb       = 0
 ! parameters to control vertical tapering of stochastic physics with
 ! height
@@ -239,6 +255,16 @@ module compns_stochy_mod
             return
           ENDIF
       ENDIF
+      IF (zorlint == 0.) zorlint=deltim
+      nszorl=nint(zorlint/deltim)                              ! zorlint in seconds
+      IF (zorl(1) > 0 ) THEN
+        pert_zorl=.true.
+      ENDIF
+      IF (pblint == 0.) pblint=deltim
+      nspbl=nint(pblint/deltim)                              ! pblint in seconds
+      IF (pbl(1) > 0 ) THEN
+        pert_pbl=.true.
+      ENDIF
 !calculate ntrunc if not supplied
      if (ntrunc .LT. 1) then  
         if (me==0) print*,'ntrunc not supplied, calculating'
@@ -248,6 +274,8 @@ module compns_stochy_mod
            if (sppt(k).GT.0) l_min=min(sppt_lscale(k),l_min)
            if (shum(k).GT.0) l_min=min(shum_lscale(k),l_min)
            if (skeb(k).GT.0) l_min=min(skeb_lscale(k),l_min)
+           if (zorl(k).GT.0) l_min=min(zorl_lscale(k),l_min)
+           if (pbl(k).GT.0) l_min=min(pbl_lscale(k),l_min)
        enddo
        if (lndp_type.GT.0) l_min=min(lndp_lscale(1),l_min)
        if (spp_prt_list(1).GT.0) l_min=min(spp_lscale(1),l_min)
@@ -387,6 +415,8 @@ module compns_stochy_mod
          if (lndp_type .NE. 0) print *, ' n_var_lndp : ', n_var_lndp
          print *, ' do_spp  : ', do_spp
          print *, ' n_var_spp : ', n_var_spp
+         print *, ' pert_zorl : ', pert_zorl
+         print *, ' pert_pbl : ', pert_pbl
       endif
       iret = 0
 !
@@ -438,12 +468,14 @@ module compns_stochy_mod
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !
       namelist /nam_stochy/ntrunc,lon_s,lat_s,sppt,sppt_tau,sppt_lscale,sppt_logit, &
-      iseed_shum,iseed_sppt,shum,shum_tau, &
-      shum_lscale,stochini,skeb_varspect_opt,sppt_sfclimit, &
-      skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth, &
-      skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,&
-      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale, &
-      epbl,epbl_lscale,epbl_tau,iseed_epbl,                                    &
+      iseed_shum,iseed_sppt,shum,shum_tau,                                          &
+      shum_lscale,stochini,skeb_varspect_opt,sppt_sfclimit,                         &
+      skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth,   &
+      skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,                 &
+      shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,     &
+      epbl,epbl_lscale,epbl_tau,iseed_epbl,                                         &
+      zorl,zorl_lscale,zorl_tau,iseed_zorl,                                         &
+      pbl,pbl_lscale,pbl_tau,iseed_pbl, pblint,                                     &
       ocnsppt,ocnsppt_lscale,ocnsppt_tau,iseed_ocnsppt
 
       namelist /nam_sfcperts/lndp_type,lndp_model_type,lndp_var_list, lndp_prt_list, iseed_lndp, & 
@@ -474,6 +506,7 @@ module compns_stochy_mod
       iseed_epbl       = 0      ! random seeds (if 0 use system clock)
       iseed_epbl2      = 0      ! random seeds (if 0 use system clock)
       iseed_ocnsppt    = 0      ! random seeds (if 0 use system clock)
+      iseed_zorl       = 0      ! random seeds (if 0 use system clock)
       rewind (nlunit)
       open (unit=nlunit, file='input.nml', action='READ', status='OLD', iostat=ios)
       read(nlunit,nam_stochy)
