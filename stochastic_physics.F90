@@ -343,7 +343,6 @@ end subroutine init_stochastic_physics_ocn
 
 subroutine run_stochastic_physics(levs, kdt, fhour, blksz, sppt_wts, shum_wts, skebu_wts,  & 
                                   skebv_wts, sfc_wts, spp_wts, zorl_wts,pbl_wts, nthreads)
-                                  skebv_wts, sfc_wts,zorl_wts,pbl_wts,nthreads)
 
 
 !\callgraph
