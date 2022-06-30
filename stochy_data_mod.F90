@@ -314,7 +314,7 @@ module stochy_data_mod
    endif
    if (npbl > 0) then
       if (is_rootpe()) then
-         print *, 'Initialize random pattern for ZORL'
+         print *, 'Initialize random pattern for PBL'
          if (stochini) then
             ierr=NF90_INQ_VARID(stochlun,"pbl1_seed", varid1)
             if (ierr .NE. 0) then
@@ -334,7 +334,7 @@ module stochy_data_mod
                iret = ierr
                return
             end if
-            ierr=NF90_INQ_VARID(stochlun,"pbl3_spec", varid4)
+            ierr=NF90_INQ_VARID(stochlun,"pbl2_spec", varid4)
             if (ierr .NE. 0) then
                write(0,*) 'error inquring PBL2 spec'
                iret = ierr

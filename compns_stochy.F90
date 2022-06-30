@@ -395,6 +395,7 @@ module compns_stochy_mod
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,     &
       epbl,epbl_lscale,epbl_tau,iseed_epbl,                                         &
       zorl,zorl_lscale,zorl_tau,iseed_zorl,                                         &
+      pbl,pbl_lscale,pbl_tau,iseed_pbl, pblint,                                     &
       ocnsppt,ocnsppt_lscale,ocnsppt_tau,iseed_ocnsppt
 
       namelist /nam_sfcperts/lndp_type,lndp_var_list, lndp_prt_list, iseed_lndp, & 
