@@ -21,7 +21,7 @@ contains
 
 subroutine init_stochastic_physics(levs, blksz, dtp, sppt_amp, input_nml_file_in, fn_nml, nlunit, &
     xlon,xlat, &
-    do_sppt_in, do_shum_in, pert_zorl_in,pert_pbl, do_skeb_in, lndp_type_in, n_var_lndp_in, use_zmtnblck_out, skeb_npass_out,    &
+    do_sppt_in, do_shum_in, pert_zorl_in,pert_pbl_in, do_skeb_in, lndp_type_in, n_var_lndp_in, use_zmtnblck_out, skeb_npass_out,    &
     lndp_var_list_out, lndp_prt_list_out,                         &
     n_var_spp_in, spp_var_list_out, spp_prt_list_out, spp_stddev_cutoff_out, do_spp_in,     &
     ak, bk, nthreads, mpiroot, mpicomm, iret) 
@@ -154,7 +154,8 @@ if (n_var_spp>0) then
    spp_prt_list_out=spp_prt_list(1:n_var_spp)
    spp_stddev_cutoff_out=spp_stddev_cutoff(1:n_var_spp)
 endif
-if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (lndp_type==0) .AND. (.NOT. do_spp) (.NOT. pert_zorl) .AND. (.NOT. pert_pbl) ) return
+if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (lndp_type==0) .AND. &
+     (.NOT. do_spp)  .AND. (.NOT. pert_zorl) .AND. (.NOT. pert_pbl) ) return
 allocate(sl(levs))
 do k=1,levs
    sl(k)= 0.5*(ak(k)/101300.+bk(k)+ak(k+1)/101300.0+bk(k+1)) ! si are now sigmas
