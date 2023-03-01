@@ -23,17 +23,13 @@ module stochy_data_mod
  public :: init_stochdata,init_stochdata_ocn
 
  type(random_pattern), public, save, allocatable, dimension(:) :: &
-       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt, &
-       rpattern_spp, rpattern_zorl,rpattern_pbl1,rpattern_pbl2
+       rpattern_sppt,rpattern_shum,rpattern_skeb, rpattern_sfc,rpattern_epbl1,rpattern_epbl2,rpattern_ocnsppt,rpattern_spp
  integer, public :: nepbl=0
  integer, public :: nocnsppt=0
  integer, public :: nsppt=0
  integer, public :: nshum=0
  integer, public :: nskeb=0
  integer, public :: nlndp=0 ! this is the number of different patterns (determined by the tau/lscale input) 
- integer, public :: nspp =0 ! this is the number of different patterns (determined by the tau/lscale input) 
- integer, public :: nzorl=0
- integer, public :: npbl=0
  real*8, public,allocatable :: sl(:)
 
  real(kind=kind_phys),public, allocatable :: vfact_sppt(:),vfact_shum(:),vfact_skeb(:),vfact_spp(:)
@@ -66,9 +62,8 @@ module stochy_data_mod
    integer :: nn,k,nm,stochlun,ierr,n
    integer :: locl,indev,indod,indlsod,indlsev
    integer :: l,jbasev,jbasod
-   integer :: jcapin,varid1,varid2,varid3,varid4
+   integer :: jcapin,varid1,varid2
    real(kind_phys),allocatable :: noise_e(:,:),noise_o(:,:)
-   integer(kind=kind_phys):: tmp_seed(5)
    include 'function_indlsod'
    include 'function_indlsev'
    include 'netcdf.inc'
@@ -81,8 +76,8 @@ module stochy_data_mod
    call compns_stochy (mype,size(input_nml_file,1),input_nml_file(:),fn_nml,nlunit,real(delt,kind=kind_phys),iret)
   
    if (iret/=0) return  ! need to make sure that non-zero irets are being trapped.
-   if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (lndp_type==0) .AND. (.NOT. do_spp) &
-        .AND. (.NOT. do_spp) .AND. (.NOT. pert_zorl) .AND. (.NOT. pert_pbl) ) return
+   if ( (.NOT. do_sppt) .AND. (.NOT. do_shum) .AND. (.NOT. do_skeb)  .AND. (lndp_type==0) .AND. (.NOT. do_spp)) return
+
    call initialize_spectral(gis_stochy)
    allocate(noise_e(len_trie_ls,2),noise_o(len_trio_ls,2))
 ! determine number of random patterns to be used for each scheme.
@@ -120,34 +115,14 @@ module stochy_data_mod
    !  endif
    !enddo
    if (n_var_lndp>0) nlndp=1
-   if (n_var_spp>0) nspp=n_var_spp
    if (is_rootpe())  print *,' nlndp   = ', nlndp
-   if (is_rootpe())  print *,' nspp   = ', nspp
-
-   do n=1,size(zorl)
-     if (zorl(n) > 0) then
-        nzorl=nzorl+1
-     else
-        exit
-     endif
-   enddo
-   do n=1,size(pbl)
-     if (pbl(n) > 0) then
-        npbl=npbl+1
-     else
-        exit
-     endif
-   enddo
 
    if (nsppt > 0) allocate(rpattern_sppt(nsppt))
    if (nshum > 0) allocate(rpattern_shum(nshum))
    if (nskeb > 0) allocate(rpattern_skeb(nskeb))
    ! mg, sfc perts
    if (nlndp > 0) allocate(rpattern_sfc(nlndp))
-   if (nspp > 0) allocate(rpattern_spp(nspp))
-   if (nzorl > 0) allocate(rpattern_zorl(nzorl))
-   if (npbl > 0) allocate(rpattern_pbl1(npbl))
-   if (npbl > 0) allocate(rpattern_pbl2(npbl))
+   if (n_var_spp > 0) allocate(rpattern_spp(n_var_spp))
 
 !  if stochini is true, then read in pattern from a file
    if (is_rootpe()) then
@@ -265,137 +240,6 @@ module stochy_data_mod
                 if (nm .eq. 0) cycle
                 rpattern_shum(n)%spec_o(nn,1,1) = rpattern_shum(n)%stdev*rpattern_shum(n)%spec_o(nn,1,1)*rpattern_shum(n)%varspectrum(nm)
                 rpattern_shum(n)%spec_o(nn,2,1) = rpattern_shum(n)%stdev*rpattern_shum(n)%spec_o(nn,2,1)*rpattern_shum(n)%varspectrum(nm)
-             enddo
-          endif
-       enddo
-   endif
-   if (nzorl > 0) then
-      if (is_rootpe()) then
-         print *, 'Initialize random pattern for ZORL'
-         if (stochini) then
-            ierr=NF90_INQ_VARID(stochlun,"zorl_seed", varid1)
-            if (ierr .NE. 0) then
-               write(0,*) 'error inquring ZORL seed'
-               iret = ierr
-               return
-            end if
-            ierr=NF90_INQ_VARID(stochlun,"zorl_spec", varid2)
-            if (ierr .NE. 0) then
-               write(0,*) 'error inquring ZORL spec'
-               iret = ierr
-               return
-            end if
-         endif
-      endif
-      call patterngenerator_init(zorl_lscale(1:nzorl),zorlint,zorl_tau(1:nzorl),zorl(1:nzorl),iseed_zorl,rpattern_zorl, &
-          lonf,latg,jcap,gis_stochy%ls_node,nzorl,1,0,new_lscale)
-      do n=1,nzorl
-         if (stochini) then
-            call read_pattern(rpattern_zorl(n),jcapin,stochlun,1,n,varid1,varid2,.false.,ierr)
-            if (ierr .NE. 0) then
-               write(0,*) 'error reading ZORL pattern'
-               iret = ierr
-               return
-            end if
-          else
-             call getnoise(rpattern_zorl(n),noise_e,noise_o)
-             do nn=1,len_trie_ls
-                rpattern_zorl(n)%spec_e(nn,1,1)=noise_e(nn,1)
-                rpattern_zorl(n)%spec_e(nn,2,1)=noise_e(nn,2)
-                nm = rpattern_zorl(n)%idx_e(nn)
-                if (nm .eq. 0) cycle
-                rpattern_zorl(n)%spec_e(nn,1,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_e(nn,1,1)*rpattern_zorl(n)%varspectrum(nm)
-                rpattern_zorl(n)%spec_e(nn,2,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_e(nn,2,1)*rpattern_zorl(n)%varspectrum(nm)
-             enddo
-             do nn=1,len_trio_ls
-                rpattern_zorl(n)%spec_o(nn,1,1)=noise_o(nn,1)
-                rpattern_zorl(n)%spec_o(nn,2,1)=noise_o(nn,2)
-                nm = rpattern_zorl(n)%idx_o(nn)
-                if (nm .eq. 0) cycle
-                rpattern_zorl(n)%spec_o(nn,1,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_o(nn,1,1)*rpattern_zorl(n)%varspectrum(nm)
-                rpattern_zorl(n)%spec_o(nn,2,1) = rpattern_zorl(n)%stdev*rpattern_zorl(n)%spec_o(nn,2,1)*rpattern_zorl(n)%varspectrum(nm)
-             enddo
-          endif
-       enddo
-   endif
-   if (npbl > 0) then
-      if (is_rootpe()) then
-         print *, 'Initialize random pattern for PBL'
-         if (stochini) then
-            ierr=NF90_INQ_VARID(stochlun,"pbl1_seed", varid1)
-            if (ierr .NE. 0) then
-               write(0,*) 'error inquring PBL1 seed'
-               iret = ierr
-               return
-            end if
-            ierr=NF90_INQ_VARID(stochlun,"pbl1_spec", varid2)
-            if (ierr .NE. 0) then
-               write(0,*) 'error inquring PBL1 spec'
-               iret = ierr
-               return
-            end if
-            ierr=NF90_INQ_VARID(stochlun,"pbl2_seed", varid3)
-            if (ierr .NE. 0) then
-               write(0,*) 'error inquring PBL2 seed'
-               iret = ierr
-               return
-            end if
-            ierr=NF90_INQ_VARID(stochlun,"pbl2_spec", varid4)
-            if (ierr .NE. 0) then
-               write(0,*) 'error inquring PBL2 spec'
-               iret = ierr
-               return
-            end if
-         endif
-      endif
-      call patterngenerator_init(pbl_lscale(1:npbl),pblint,pbl_tau(1:npbl),pbl(1:npbl),iseed_pbl,rpattern_pbl1, &
-          lonf,latg,jcap,gis_stochy%ls_node,npbl,1,0,new_lscale)
-      tmp_seed(1)=iseed_pbl(1)+123456
-      call patterngenerator_init(pbl_lscale(1:npbl),pblint,pbl_tau(1:npbl),pbl(1:npbl),tmp_seed,rpattern_pbl2, &
-          lonf,latg,jcap,gis_stochy%ls_node,npbl,1,0,new_lscale)
-      do n=1,npbl
-         if (stochini) then
-            call read_pattern(rpattern_pbl1(n),jcapin,stochlun,1,n,varid1,varid2,.false.,ierr)
-            call read_pattern(rpattern_pbl2(n),jcapin,stochlun,1,n,varid3,varid4,.false.,ierr)
-            if (ierr .NE. 0) then
-               write(0,*) 'error reading ZORL pattern'
-               iret = ierr
-               return
-            end if
-          else
-             call getnoise(rpattern_pbl1(n),noise_e,noise_o)
-             do nn=1,len_trie_ls
-                rpattern_pbl1(n)%spec_e(nn,1,1)=noise_e(nn,1)
-                rpattern_pbl1(n)%spec_e(nn,2,1)=noise_e(nn,2)
-                nm = rpattern_pbl1(n)%idx_e(nn)
-                if (nm .eq. 0) cycle
-                rpattern_pbl1(n)%spec_e(nn,1,1) = rpattern_pbl1(n)%stdev*rpattern_pbl1(n)%spec_e(nn,1,1)*rpattern_pbl1(n)%varspectrum(nm)
-                rpattern_pbl1(n)%spec_e(nn,2,1) = rpattern_pbl1(n)%stdev*rpattern_pbl1(n)%spec_e(nn,2,1)*rpattern_pbl1(n)%varspectrum(nm)
-             enddo
-             do nn=1,len_trio_ls
-                rpattern_pbl1(n)%spec_o(nn,1,1)=noise_o(nn,1)
-                rpattern_pbl1(n)%spec_o(nn,2,1)=noise_o(nn,2)
-                nm = rpattern_pbl1(n)%idx_o(nn)
-                if (nm .eq. 0) cycle
-                rpattern_pbl1(n)%spec_o(nn,1,1) = rpattern_pbl1(n)%stdev*rpattern_pbl1(n)%spec_o(nn,1,1)*rpattern_pbl1(n)%varspectrum(nm)
-                rpattern_pbl1(n)%spec_o(nn,2,1) = rpattern_pbl1(n)%stdev*rpattern_pbl1(n)%spec_o(nn,2,1)*rpattern_pbl1(n)%varspectrum(nm)
-             enddo
-             call getnoise(rpattern_pbl2(n),noise_e,noise_o)
-             do nn=1,len_trie_ls
-                rpattern_pbl2(n)%spec_e(nn,1,1)=noise_e(nn,1)
-                rpattern_pbl2(n)%spec_e(nn,2,1)=noise_e(nn,2)
-                nm = rpattern_pbl2(n)%idx_e(nn)
-                if (nm .eq. 0) cycle
-                rpattern_pbl2(n)%spec_e(nn,1,1) = rpattern_pbl2(n)%stdev*rpattern_pbl2(n)%spec_e(nn,1,1)*rpattern_pbl2(n)%varspectrum(nm)
-                rpattern_pbl2(n)%spec_e(nn,2,1) = rpattern_pbl2(n)%stdev*rpattern_pbl2(n)%spec_e(nn,2,1)*rpattern_pbl2(n)%varspectrum(nm)
-             enddo
-             do nn=1,len_trio_ls
-                rpattern_pbl2(n)%spec_o(nn,1,1)=noise_o(nn,1)
-                rpattern_pbl2(n)%spec_o(nn,2,1)=noise_o(nn,2)
-                nm = rpattern_pbl2(n)%idx_o(nn)
-                if (nm .eq. 0) cycle
-                rpattern_pbl2(n)%spec_o(nn,1,1) = rpattern_pbl2(n)%stdev*rpattern_pbl2(n)%spec_o(nn,1,1)*rpattern_pbl2(n)%varspectrum(nm)
-                rpattern_pbl2(n)%spec_o(nn,2,1) = rpattern_pbl2(n)%stdev*rpattern_pbl2(n)%spec_o(nn,2,1)*rpattern_pbl2(n)%varspectrum(nm)
              enddo
           endif
        enddo
@@ -567,17 +411,17 @@ module stochy_data_mod
          enddo ! k, n_var_lndp
       enddo ! n, nlndp
    endif ! nlndp > 0
-   if (nspp  > 0) then
+   if (n_var_spp  > 0) then
       if (is_rootpe()) then
          print *, 'Initialize random pattern for SPP-PERTS'
          if (stochini) then
-            ierr=NF90_INQ_VARID(stochlun,"spppert_seed", varid1)
+            ierr=NF90_INQ_VARID(stochlun,"spp_seed", varid1)
             if (ierr .NE. 0) then
                write(0,*) 'error inquring SPP-PERTS seed'
                iret = ierr
                return
             end if
-            ierr=NF90_INQ_VARID(stochlun,"ppcpert_spec", varid2)
+            ierr=NF90_INQ_VARID(stochlun,"spp_spec", varid2)
             if (ierr .NE. 0) then
                write(0,*) 'error inquring SPP-PERTS spec'
                iret = ierr
@@ -586,12 +430,12 @@ module stochy_data_mod
          endif
       endif
       ones = 1.
-      call patterngenerator_init(spp_lscale(1:nspp),real(delt,kind_phys),spp_tau(1:nspp),ones(1:nspp),iseed_spp,rpattern_spp, &
-                                 lonf,latg,jcap,gis_stochy%ls_node,nspp,n_var_spp,0,new_lscale)
-      do n=1,nspp
+      call patterngenerator_init(spp_lscale(1:n_var_spp),real(delt,kind_phys),spp_tau(1:n_var_spp),ones(1:n_var_spp),iseed_spp,rpattern_spp, &
+                                 lonf,latg,jcap,gis_stochy%ls_node,n_var_spp,1,0,new_lscale)
+      do n=1,n_var_spp
          if (is_rootpe()) print *, 'Initialize random pattern for SPP PERTS'
             if (stochini) then
-               call read_pattern(rpattern_spp(n),jcapin,stochlun,1,n,varid1,varid2,.true.,ierr)
+               call read_pattern(rpattern_spp(n),jcapin,stochlun,1,n,varid1,varid2,.false.,ierr)
                if (ierr .NE. 0) then
                   write(0,*) 'error reading SPP  pattern'
                   iret = ierr
@@ -618,8 +462,8 @@ module stochy_data_mod
                 enddo
                 if (is_rootpe()) print *, 'spp pattern initialized, ',n, 1, minval(rpattern_spp(n)%spec_o(:,:,1)), maxval(rpattern_spp(n)%spec_o(:,:,1))
             endif ! stochini
-      enddo ! n, nspp
-   endif ! nspp  > 0
+      enddo ! n, n_var_spp
+   endif ! n_var_spp  > 0
 
    if (is_rootpe() .and. stochini) CLOSE(stochlun)
    deallocate(noise_e,noise_o)
