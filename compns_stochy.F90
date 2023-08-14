@@ -67,7 +67,7 @@ module compns_stochy_mod
                             iseed_lndp, lndp_tau,lndp_lscale 
 !     For SPP physics parameterization perterbations
       namelist /nam_sppperts/spp_var_list, spp_prt_list, iseed_spp, &
-      spp_tau,spp_lscale,spp_sigtop1, spp_sigtop2,spp_stddev_cutoff
+      spp_tau,spp_lscale,spp_sigtop1, spp_sigtop2,spp_stddev_cutoff,spp_logit
 
       rerth  =6.3712e+6      ! radius of earth (m)
       tol=0.01  ! tolerance for calculations
@@ -149,6 +149,7 @@ module compns_stochy_mod
 ! length scale.
       skeb_varspect_opt = 0
       sppt_logit        = .false. ! logit transform for sppt to bounded interval [-1,+1]
+      spp_logit(:)      = .false. ! logit transform for sppt to bounded interval [-1,+1]
       stochini          = .false. ! true= read in pattern, false=initialize from seed
 ! For SPP perturbations
       spp_lscale  = -999.       ! length scales

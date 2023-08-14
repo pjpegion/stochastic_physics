@@ -342,7 +342,7 @@ use stochy_data_mod, only : nshum,rpattern_shum,rpattern_sppt,nsppt,rpattern_ske
                             rpattern_spp, nspp, vfact_spp
 use get_stochy_pattern_mod,only : get_random_pattern_scalar,get_random_pattern_vector, & 
                                   get_random_pattern_sfc,get_random_pattern_spp
-use stochy_namelist_def, only : do_shum,do_sppt,do_skeb,nssppt,nsshum,nsskeb,sppt_logit,    & 
+use stochy_namelist_def, only : do_shum,do_sppt,do_skeb,nssppt,nsshum,nsskeb,sppt_logit, spp_logit, & 
                                 lndp_type, n_var_lndp, n_var_spp, do_spp, spp_stddev_cutoff, spp_prt_list
 use mpi_wrapper, only: is_rootpe
 implicit none
@@ -453,6 +453,9 @@ if (n_var_spp .GE. 1) then
              spp_wts(blk,1:len,k,v)=MAX(MIN(tmp_spp_wts(1:len,blk,v)*vfact_spp(k),spp_stddev_cutoff(v)),-1.0*spp_stddev_cutoff(v))*spp_prt_list(v)
            else
              spp_wts(blk,1:len,k,v)=tmp_spp_wts(1:len,blk,v)*vfact_spp(k)*spp_prt_list(v)
+           endif
+           if (spp_logit(v)) then
+              spp_wts(blk,1:len,k,v)=2-(2.0/(1+exp(spp_wts(blk,1:len,k,v))))
            endif
          ENDDO
        ENDDO

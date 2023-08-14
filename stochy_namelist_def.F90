@@ -30,6 +30,7 @@
       integer,dimension(5) ::skeb_vfilt
       integer(kind=8),dimension(5) ::iseed_sppt,iseed_shum,iseed_skeb,iseed_epbl,iseed_ocnsppt,iseed_epbl2
       logical stochini,sppt_logit,new_lscale
+      logical,dimension(5) :: spp_logit
       logical use_zmtnblck
       logical do_shum,do_sppt,do_skeb,pert_epbl,do_ocnsppt,do_spp
 
