@@ -15,7 +15,8 @@ use stochy_namelist_def, only : stochini
 
 implicit none
 integer, parameter      :: nlevs=3
-integer, parameter :: max_n_var_lndp = 6
+integer, parameter :: max_n_var_lndp = 20
+integer, parameter :: max_n_var_spp = 6
 integer                 :: ntasks,fid
 integer                 :: nthreads
 integer                 :: ncid,xt_dim_id,yt_dim_id,time_dim_id,xt_var_id,yt_var_id,time_var_id,var_id_lat,var_id_lon,var_id_tile
@@ -24,8 +25,10 @@ integer                 :: varidl(max_n_var_lndp)
 integer                 :: zt_dim_id,zt_var_id
 character*2             :: strid
 
-character(len=3), dimension(max_n_var_lndp)         ::  lndp_var_list
-real(kind=kind_dbl_prec), dimension(max_n_var_lndp) ::  lndp_prt_list
+character(len=3), dimension(max_n_var_lndp)     :: lndp_var_list
+character(len=3), dimension(max_n_var_spp)      :: spp_var_list
+real(kind=kind_phys), dimension(max_n_var_lndp) :: lndp_prt_list
+real(kind=kind_phys), dimension(max_n_var_spp)  :: spp_prt_list, spp_stddev_cutoff
 include 'mpif.h'
 include 'netcdf.inc'
 real :: ak(nlevs+1),bk(nlevs+1)
@@ -58,14 +61,15 @@ real (kind=kind_phys),allocatable :: sppt_pattern(:,:)
 real (kind=kind_phys),allocatable :: skebu_wts (:,:,:)
 real (kind=kind_phys),allocatable :: skebv_wts (:,:,:)
 real (kind=kind_phys),allocatable :: sfc_wts   (:,:,:)
+real (kind=kind_phys),allocatable :: spp_wts   (:,:,:,:)
 integer,allocatable :: blksz(:)
 integer              :: me              !< MPI rank designator
 integer              :: root_pe         !< MPI rank of root atmosphere processor
 real(kind=kind_phys) :: dtp             !< physics timestep in seconds
 real(kind=kind_phys) :: fhour           !< previous forecast hour
 real(kind=kind_phys) :: sppt_amp        !< amplitude of sppt (to go to cld scheme)
-logical  :: do_sppt,do_shum,do_skeb,use_zmtnblck
-integer  ::  skeb_npass,n_var_lndp, lndp_type
+logical  :: do_sppt,do_shum,do_skeb,use_zmtnblck,do_spp
+integer  ::  skeb_npass,n_var_lndp, lndp_type, n_var_spp,lndp_model_type
 character(len=65) :: fn_nml                   !< namelist filename
 character(len=256),allocatable :: input_nml_file(:) !< character string containing full namelist
 
@@ -80,6 +84,7 @@ endif
 read(ntile_out_str,'(I1.1)') ntile_out
 open (unit=nlunit, file='input.nml', status='OLD')
 n_var_lndp=0
+n_var_spp=0
 lndp_type=0
 do_sppt=.false.
 do_shum=.false.
@@ -183,8 +188,12 @@ call init_stochastic_physics(nlevs, blksz, dtp, sppt_amp,                       
      input_nml_file, fn_nml, nlunit, xlon, xlat, do_sppt, do_shum,                &
      do_skeb, lndp_type, n_var_lndp, use_zmtnblck, skeb_npass, &
      lndp_var_list, lndp_prt_list,    &
+     n_var_spp, spp_var_list, spp_prt_list, spp_stddev_cutoff, do_spp,   &
      ak, bk, nthreads, root_pe, comm, ierr)
-if (ierr .ne. 0) print *, 'ERROR init_stochastic_physics call' ! Draper - need proper error trapping here
+if (ierr .ne. 0) then
+     print *, 'ERROR init_stochastic_physics call' ! Draper - need proper error trapping here
+     call mpi_abort()
+endif
 call get_outfile(fname)
 write(strid,'(I2.2)') my_id+1
 if (ntile_out.EQ.0) write_this_tile=.true.
@@ -292,6 +301,7 @@ if (do_shum)allocate(shum_wts(nblks,blksz_1,nlevs))
 if (do_skeb)allocate(skebu_wts(nblks,blksz_1,nlevs))
 if (do_skeb)allocate(skebv_wts(nblks,blksz_1,nlevs))
 if (lndp_type > 0)allocate(sfc_wts(nblks,blksz_1,n_var_lndp))
+if (n_var_spp > 0)allocate(spp_wts(nblks,blksz_1,nlevs,n_var_spp))
 if (stochini) then
    istart=11
 else
@@ -302,7 +312,7 @@ do i=istart,21
    ts=i/4.0
    call run_stochastic_physics(nlevs, i-1, fhour, blksz, &
                                sppt_wts=sppt_wts, shum_wts=shum_wts, skebu_wts=skebu_wts, skebv_wts=skebv_wts, sfc_wts=sfc_wts, &
-                               nthreads=nthreads)
+                               spp_wts=spp_wts, nthreads=nthreads)
   
    if (me.EQ.0 .and. do_sppt) print*,'SPPT_WTS=',i,sppt_wts(1,1,2)
    if (i.EQ. 10) call write_stoch_restart_atm('stochy_middle.nc')

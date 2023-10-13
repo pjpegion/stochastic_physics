@@ -14,7 +14,8 @@ module get_stochy_pattern_mod
                              nspp,rpattern_spp, rpattern_ocnskeb,           &
                              skebv_save, skeb_vwts, skeb_vpts, wlon
  use stochy_patterngenerator_mod, only: random_pattern, ndimspec,           &
-                                        patterngenerator_advance
+                                        patterngenerator_advance,           &
+                                        patterngenerator_advance_jb
  use stochy_internal_state_mod, only: stochy_internal_state
  use mpi_wrapper, only : mp_reduce_sum,is_rootpe
  use mersenne_twister, only: random_seed
@@ -130,8 +131,8 @@ subroutine get_random_pattern_vector(rpattern,npatterns,&
           if (.not. stochini) call patterngenerator_advance(rpattern(n),k,first_call)
       !   ke norm (convert streamfunction forcing to vorticity forcing)
           do nn=1,2
-             vrtspec_e(:,nn) = gis_stochy%kenorm_e*rpattern(n)%spec_e(:,nn,k)
-             vrtspec_o(:,nn) = gis_stochy%kenorm_o*rpattern(n)%spec_o(:,nn,k)
+             vrtspec_e(:,nn) = gis_stochy%kenorm_e(:)*rpattern(n)%spec_e(:,nn,k)
+             vrtspec_o(:,nn) = gis_stochy%kenorm_o(:)*rpattern(n)%spec_o(:,nn,k)
           enddo
         ! convert to winds
           call vrtdivspect_to_uvgrid( divspec_e,divspec_o,vrtspec_e,vrtspec_o,&
@@ -223,13 +224,14 @@ end subroutine get_random_pattern_vector
 !>@brief The subroutine 'get_random_pattern_scalar' converts spherical harmonics to the gaussian grid then interpolates to the target grid
 !>@details This subroutine is for a 2-D (lat-lon) scalar field
 subroutine get_random_pattern_scalar(rpattern,npatterns,&
-           gis_stochy,pattern_2d)
+           gis_stochy,pattern_2d,normalize)
 
 ! generate a random pattern for stochastic physics
  implicit none
  type(random_pattern), intent(inout)  :: rpattern(npatterns)
  type(stochy_internal_state)          :: gis_stochy
  integer,intent(in)::   npatterns
+ logical,intent(in), optional :: normalize
 
  integer i,j,lat,n
  real(kind=kind_dbl_prec), dimension(lonf,gis_stochy%lats_node_a,1):: wrk2d
@@ -245,9 +247,21 @@ subroutine get_random_pattern_scalar(rpattern,npatterns,&
  kmsk0 = 0
  glolal = 0.
  do n=1,npatterns
-    call patterngenerator_advance(rpattern(n),1,.false.)
-    call scalarspect_to_gaugrid(rpattern(n),gis_stochy,   &
-         wrk2d,1)
+    if (present(normalize)) then
+       if (normalize) then
+          print*,'calling patterngenerator_advance norm'
+          call patterngenerator_advance_jb(rpattern(n))
+          call scalarspect_to_gaugrid_norm(rpattern(n),gis_stochy,  wrk2d,1)
+       else
+          print*,'calling patterngenerator_advance'
+          call patterngenerator_advance(rpattern(n),1,.false.)
+          call scalarspect_to_gaugrid(rpattern(n),gis_stochy, wrk2d,1)
+       endif
+    else
+       print*,'calling patterngenerator_advance'
+       call patterngenerator_advance(rpattern(n),1,.false.)
+       call scalarspect_to_gaugrid(rpattern(n),gis_stochy, wrk2d,1)
+    endif
     glolal = glolal + wrk2d(:,:,1)
  enddo
 
@@ -369,6 +383,54 @@ subroutine scalarspect_to_gaugrid(rpattern,gis_stochy,datag,n)
 
       return
       end subroutine scalarspect_to_gaugrid
+
+!>@brief The subroutine 'scalarspect_to_gaugrid' converts scalar spherical harmonics to a scalar on a gaussian grid
+!>@details This subroutine is for a 2-D (lat-lon) scalar field
+subroutine scalarspect_to_gaugrid_norm(rpattern,gis_stochy,datag,n)
+!\callgraph
+
+      implicit none
+      type(random_pattern),        intent(in)  :: rpattern
+      type(stochy_internal_state), intent(in)  :: gis_stochy
+      integer                 ,    intent(in)  :: n
+      real(kind=kind_dbl_prec),    intent(out) :: datag(lonf,gis_stochy%lats_node_a)
+! local vars
+      real(kind=kind_dbl_prec)     :: spec_e(len_trie_ls,2),spec_o(len_trio_ls,2)
+      real(kind=kind_dbl_prec) for_gr_a_1(gis_stochy%lon_dim_a,1,gis_stochy%lats_dim_a)
+      real(kind=kind_dbl_prec) for_gr_a_2(lonf,1,gis_stochy%lats_dim_a)
+      integer              i,k
+      integer              lan,lat
+! normalize the spectral coefficients
+      do i=1,2
+         !spec_e(:,i) = gis_stochy%kenorm_e(:)*rpattern%spec_e(:,i,n)
+         !spec_o(:,i) = gis_stochy%kenorm_o(:)*rpattern%spec_o(:,i,n)
+         spec_e(:,i) = rpattern%spec_e(:,i,n)
+         spec_o(:,i) = rpattern%spec_o(:,i,n)
+      enddo
+      if (is_rootpe())print*,'spec_e=',gis_stochy%kenorm_e(1:20),rpattern%spec_e(1:20,1,n)
+      call spec_to_four(spec_e(:,:), spec_o(:,:), &
+                  gis_stochy%plnev_a,gis_stochy%plnod_a,&
+                  gis_stochy%ls_node, &
+                  gis_stochy%lats_dim_a,for_gr_a_1,&
+                  gis_stochy%ls_nodes,gis_stochy%max_ls_nodes,&
+                  gis_stochy%lats_nodes_a,gis_stochy%global_lats_a,&
+                  gis_stochy%lats_node_a,gis_stochy%ipt_lats_node_a,1)
+      do lan=1,gis_stochy%lats_node_a
+         lat = gis_stochy%global_lats_a(gis_stochy%ipt_lats_node_a-1+lan)
+         call four_to_grid(for_gr_a_1(:,:,lan),for_gr_a_2(:,:,lan),&
+                           gis_stochy%lon_dim_a,1)
+      enddo
+
+      datag = 0.
+      do lan=1,gis_stochy%lats_node_a
+        lat      = gis_stochy%global_lats_a(gis_stochy%ipt_lats_node_a-1+lan)
+          do i=1,lonf
+            datag(i,lan) = for_gr_a_2(i,1,lan)
+        enddo
+      enddo
+
+      return
+      end subroutine scalarspect_to_gaugrid_norm
 
 
 !>@brief The subroutine 'write_patterns' writes out a single pattern and the seed associated with the random number sequence in netcdf

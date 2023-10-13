@@ -326,6 +326,7 @@ do k=1,lonf
 enddo
 WLON=gg_lons(1)-(gg_lons(2)-gg_lons(1))
 RNLAT=gg_lats(1)*2-gg_lats(2)
+print*,'finished ocean init'
 end subroutine init_stochastic_physics_ocn
 
 !!!!!!!!!!!!!!!!!!!!
@@ -496,7 +497,7 @@ if (pert_epbl .OR. do_ocnsppt .OR. do_ocnskeb ) then
 !      sppt_wts=1.0
    endif
    if (do_ocnskeb) then
-      call get_random_pattern_scalar(rpattern_ocnskeb,nocnskeb,gis_stochy_ocn,skeb_wts)
+      call get_random_pattern_scalar(rpattern_ocnskeb,nocnskeb,gis_stochy_ocn,skeb_wts,normalize=ocnskeb_normalize)
 !   else
 !      skeb_wts=1.0
    endif

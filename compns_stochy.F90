@@ -57,7 +57,7 @@ module compns_stochy_mod
 !
       namelist /nam_stochy/ntrunc,lon_s,lat_s,sppt,sppt_tau,sppt_lscale,sppt_logit, &
       iseed_shum,iseed_sppt,shum,shum_tau,                                          &
-      shum_lscale,stochini,skeb_varspect_opt,sppt_sfclimit,                         &
+      shum_lscale,stochini,skeb_varspect_opt,ocnskeb_normalize,sppt_sfclimit,       &
       skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth,   &
       skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,                 &
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,     &
@@ -127,7 +127,7 @@ module compns_stochy_mod
       shum_tau         = -999.
       skeb_tau         = -999.
       skeb_vdof        = 5 ! proxy for vertical correlation, 5 is close to 40 passes of the 1-2-1 filter in the GFS
-      skebnorm         = 0  ! 0 - random pattern is stream function, 1- pattern is kenorm, 2- pattern is vorticity
+      skebnorm         = 0  ! 0 - random pattern is stream function, 1- pattern is kenorm, 2- pattern is vorticity, 3- normalized following Berner et al. 2009
       sppt_lscale      = -999.  ! length scales
       shum_lscale      = -999.
       skeb_lscale      = -999.
@@ -441,7 +441,7 @@ module compns_stochy_mod
 !
       namelist /nam_stochy/ntrunc,lon_s,lat_s,sppt,sppt_tau,sppt_lscale,sppt_logit, &
       iseed_shum,iseed_sppt,shum,shum_tau,                                          &
-      shum_lscale,stochini,skeb_varspect_opt,sppt_sfclimit,                         &
+      shum_lscale,stochini,skeb_varspect_opt,ocnskeb_normalize,sppt_sfclimit,       &
       skeb,skeb_tau,skeb_vdof,skeb_lscale,iseed_skeb,skeb_vfilt,skeb_diss_smooth,   &
       skeb_sigtop1,skeb_sigtop2,skebnorm,sppt_sigtop1,sppt_sigtop2,                 &
       shum_sigefold,spptint,shumint,skebint,skeb_npass,use_zmtnblck,new_lscale,     &
@@ -465,6 +465,7 @@ module compns_stochy_mod
       epbl             = -999.  ! stochastic physics tendency amplitude
       ocnsppt          = -999.  ! stochastic physics tendency amplitude
       ocnskeb          = -999.  ! stochastic physics tendency amplitude
+      ocnskeb_normalize= .true. ! if true normalize the random pattern following Berner et al. 2009
 ! logicals
       pert_epbl = .false.
       do_ocnsppt = .false.

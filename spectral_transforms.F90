@@ -1539,6 +1539,8 @@ module spectral_transforms
       allocate ( gis_stochy%epsodn(len_trio_ls) )
       allocate ( gis_stochy%kenorm_e(len_trie_ls) )
       allocate ( gis_stochy%kenorm_o(len_trio_ls) )
+      allocate ( gis_stochy%gamma_e(len_trie_ls) )
+      allocate ( gis_stochy%gamma_o(len_trio_ls) )
 !
       allocate ( gis_stochy%snnp1ev(len_trie_ls) )
       allocate ( gis_stochy%snnp1od(len_trio_ls) )
